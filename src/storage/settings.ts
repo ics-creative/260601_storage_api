@@ -7,9 +7,9 @@
  * - 容量は概ねオリジンあたり 5MB 程度 (ブラウザ依存)
  * - 同一オリジンの全タブで共有され、他タブの変更は `storage` イベントで通知される
  */
-import type { Settings } from '../core/types';
+import type { Settings } from "../core/types";
 
-const KEY = 'paint:settings';
+const KEY = "paint:settings";
 
 /**
  * 保存済みの設定を読み出す。未保存なら `null`。

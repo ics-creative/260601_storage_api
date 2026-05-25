@@ -9,7 +9,7 @@ export type Settings = {
 export type Point = { x: number; y: number };
 
 export type StrokeOp = {
-  type: 'stroke';
+  type: "stroke";
   layerId: string;
   color: string;
   width: number;
@@ -17,12 +17,12 @@ export type StrokeOp = {
 };
 
 export type AddLayerOp = {
-  type: 'addLayer';
+  type: "addLayer";
   layerId: string;
 };
 
 export type DeleteLayerOp = {
-  type: 'deleteLayer';
+  type: "deleteLayer";
   layerId: string;
 };
 

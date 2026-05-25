@@ -1,11 +1,6 @@
-import { useEffect, useRef } from 'react';
-import {
-  CANVAS_SIZE,
-  type LayerState,
-  type Point,
-  type StrokeOp,
-} from '../core/types';
-import { composite, drawSegment, shouldKeepPoint } from '../core/canvas';
+import { useEffect, useRef } from "react";
+import { CANVAS_SIZE, type LayerState, type Point, type StrokeOp } from "../core/types";
+import { composite, drawSegment, shouldKeepPoint } from "../core/canvas";
 
 const MIN_POINT_DIST = 1.5;
 
@@ -14,7 +9,7 @@ type Props = {
   selectedLayerId: string | null;
   color: string;
   width: number;
-  onStrokeEnd: (stroke: Omit<StrokeOp, 'type'>) => void;
+  onStrokeEnd: (stroke: Omit<StrokeOp, "type">) => void;
 };
 
 export function CanvasView({ state, selectedLayerId, color, width, onStrokeEnd }: Props) {
@@ -94,14 +89,14 @@ export function CanvasView({ state, selectedLayerId, color, width, onStrokeEnd }
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       style={{
-        display: 'block',
-        width: 'min(100%, calc(100svh - 80px))',
-        aspectRatio: '1 / 1',
-        height: 'auto',
-        background: '#fff',
-        border: '1px solid #ccc',
-        touchAction: 'none',
-        cursor: 'crosshair',
+        display: "block",
+        width: "min(100%, calc(100svh - 80px))",
+        aspectRatio: "1 / 1",
+        height: "auto",
+        background: "#fff",
+        border: "1px solid #ccc",
+        touchAction: "none",
+        cursor: "crosshair",
       }}
     />
   );

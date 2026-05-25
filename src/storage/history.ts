@@ -11,18 +11,18 @@
  * - log: 各操作 (stroke/addLayer/deleteLayer) を時系列で保持 (seq 自動採番)
  * - cursor: 現在の Undo/Redo カーソル位置 (head seq) を保持
  */
-import type { LogEntry, Op } from '../core/types';
+import type { LogEntry, Op } from "../core/types";
 
 /** IndexedDB の DB名。同一オリジン内でDBを識別する */
-const DB_NAME = 'paint-db';
+const DB_NAME = "paint-db";
 /** DBのスキーマバージョン。上げると onupgradeneeded が発火しスキーマ移行できる */
 const DB_VERSION = 1;
 /** 操作ログを格納する ObjectStore 名 */
-const STORE_LOG = 'log';
+const STORE_LOG = "log";
 /** カーソル位置 (head) を格納する ObjectStore 名 */
-const STORE_CURSOR = 'cursor';
+const STORE_CURSOR = "cursor";
 /** cursor ストア内で head seq を引くためのキー名 */
-const CURSOR_KEY = 'head';
+const CURSOR_KEY = "head";
 
 /** IDBRequest を Promise 化する小道具 (IDB は素ではコールバックAPI) */
 function promisifyRequest<T>(req: IDBRequest<T>): Promise<T> {
@@ -63,7 +63,7 @@ export function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_LOG)) {
         // keyPath: 'seq' で各レコードの seq プロパティを主キーとする
         // autoIncrement で seq を自動採番させる (put時に seq を未指定にすれば連番が入る)
-        db.createObjectStore(STORE_LOG, { keyPath: 'seq', autoIncrement: true });
+        db.createObjectStore(STORE_LOG, { keyPath: "seq", autoIncrement: true });
       }
       if (!db.objectStoreNames.contains(STORE_CURSOR)) {
         // keyPath なしのストア。put(value, key) でキーを明示する形になる
@@ -96,7 +96,7 @@ export function openDb(): Promise<IDBDatabase> {
  */
 export async function appendOp(op: Op): Promise<number> {
   const db = await openDb();
-  const tx = db.transaction([STORE_LOG, STORE_CURSOR], 'readwrite');
+  const tx = db.transaction([STORE_LOG, STORE_CURSOR], "readwrite");
   const logStore = tx.objectStore(STORE_LOG);
   const cursorStore = tx.objectStore(STORE_CURSOR);
 
@@ -131,8 +131,10 @@ export async function appendOp(op: Op): Promise<number> {
  */
 export async function getHead(): Promise<number> {
   const db = await openDb();
-  const tx = db.transaction(STORE_CURSOR, 'readonly');
-  const v = await promisifyRequest<number | undefined>(tx.objectStore(STORE_CURSOR).get(CURSOR_KEY));
+  const tx = db.transaction(STORE_CURSOR, "readonly");
+  const v = await promisifyRequest<number | undefined>(
+    tx.objectStore(STORE_CURSOR).get(CURSOR_KEY),
+  );
   return v ?? 0;
 }
 
@@ -143,7 +145,7 @@ export async function getHead(): Promise<number> {
  */
 export async function setHead(seq: number): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction(STORE_CURSOR, 'readwrite');
+  const tx = db.transaction(STORE_CURSOR, "readwrite");
   tx.objectStore(STORE_CURSOR).put(seq, CURSOR_KEY);
   await promisifyTx(tx);
 }
@@ -156,8 +158,8 @@ export async function setHead(seq: number): Promise<void> {
  */
 export async function getMaxSeq(): Promise<number> {
   const db = await openDb();
-  const tx = db.transaction(STORE_LOG, 'readonly');
-  const cursor = await promisifyRequest(tx.objectStore(STORE_LOG).openCursor(null, 'prev'));
+  const tx = db.transaction(STORE_LOG, "readonly");
+  const cursor = await promisifyRequest(tx.objectStore(STORE_LOG).openCursor(null, "prev"));
   return cursor ? (cursor.key as number) : 0;
 }
 
@@ -170,7 +172,7 @@ export async function getMaxSeq(): Promise<number> {
 export async function listOpsUpTo(seq: number): Promise<LogEntry[]> {
   if (seq <= 0) return [];
   const db = await openDb();
-  const tx = db.transaction(STORE_LOG, 'readonly');
+  const tx = db.transaction(STORE_LOG, "readonly");
   const store = tx.objectStore(STORE_LOG);
   const range = IDBKeyRange.upperBound(seq);
   const all = await promisifyRequest(store.getAll(range));
@@ -183,10 +185,13 @@ export async function listOpsUpTo(seq: number): Promise<LogEntry[]> {
  * `IDBKeyRange.bound(lower, upper, lowerOpen, upperOpen)` の lowerOpen=true で
  * 下端を含まないレンジを表現できる。
  */
-export async function listOpsBetween(fromExclusive: number, toInclusive: number): Promise<LogEntry[]> {
+export async function listOpsBetween(
+  fromExclusive: number,
+  toInclusive: number,
+): Promise<LogEntry[]> {
   if (toInclusive <= fromExclusive) return [];
   const db = await openDb();
-  const tx = db.transaction(STORE_LOG, 'readonly');
+  const tx = db.transaction(STORE_LOG, "readonly");
   const range = IDBKeyRange.bound(fromExclusive, toInclusive, true, false);
   const all = await promisifyRequest(tx.objectStore(STORE_LOG).getAll(range));
   return all as LogEntry[];
@@ -199,7 +204,7 @@ export async function listOpsBetween(fromExclusive: number, toInclusive: number)
  */
 export async function countOps(): Promise<number> {
   const db = await openDb();
-  const tx = db.transaction(STORE_LOG, 'readonly');
+  const tx = db.transaction(STORE_LOG, "readonly");
   return await promisifyRequest(tx.objectStore(STORE_LOG).count());
 }
 
@@ -212,11 +217,11 @@ export async function countOps(): Promise<number> {
 export async function peekRecentOps(n: number): Promise<LogEntry[]> {
   if (n <= 0) return [];
   const db = await openDb();
-  const tx = db.transaction(STORE_LOG, 'readonly');
+  const tx = db.transaction(STORE_LOG, "readonly");
   const store = tx.objectStore(STORE_LOG);
   const collected: LogEntry[] = [];
   await new Promise<void>((resolve, reject) => {
-    const cReq = store.openCursor(null, 'prev');
+    const cReq = store.openCursor(null, "prev");
     cReq.onsuccess = () => {
       const cur = cReq.result;
       if (cur && collected.length < n) {
@@ -238,7 +243,7 @@ export async function peekRecentOps(n: number): Promise<LogEntry[]> {
  */
 export async function getOp(seq: number): Promise<LogEntry | null> {
   const db = await openDb();
-  const tx = db.transaction(STORE_LOG, 'readonly');
+  const tx = db.transaction(STORE_LOG, "readonly");
   const v = await promisifyRequest(tx.objectStore(STORE_LOG).get(seq));
   return (v as LogEntry | undefined) ?? null;
 }
@@ -251,7 +256,7 @@ export async function getOp(seq: number): Promise<LogEntry | null> {
  */
 export async function truncateAfter(seq: number): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction([STORE_LOG, STORE_CURSOR], 'readwrite');
+  const tx = db.transaction([STORE_LOG, STORE_CURSOR], "readwrite");
   const store = tx.objectStore(STORE_LOG);
   await new Promise<void>((resolve, reject) => {
     const range = IDBKeyRange.lowerBound(seq, true);

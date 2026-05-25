@@ -1,13 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  CANVAS_SIZE,
-  type LayerState,
-  type Op,
-  type Settings,
-} from '../core/types';
-import { applyOne, emptyState, replayLayer } from '../core/replay';
-import { blobToCanvas, canvasToBlob, createLayerCanvas } from '../core/canvas';
-import { loadSettings, saveSettings } from '../storage/settings';
+import { useEffect, useRef, useState } from "react";
+import { CANVAS_SIZE, type LayerState, type Op, type Settings } from "../core/types";
+import { applyOne, emptyState, replayLayer } from "../core/replay";
+import { blobToCanvas, canvasToBlob, createLayerCanvas } from "../core/canvas";
+import { loadSettings, saveSettings } from "../storage/settings";
 import {
   appendOp,
   getHead,
@@ -17,16 +12,16 @@ import {
   listOpsUpTo,
   setHead as setHeadDb,
   truncateAfter,
-} from '../storage/history';
-import { loadSnapshot, saveSnapshot } from '../storage/snapshot';
-import { resetAll } from '../reset';
-import { CanvasView } from './CanvasView';
-import { Toolbar } from './Toolbar';
-import { LayerList } from './LayerList';
-import { DebugPanel } from './DebugPanel';
+} from "../storage/history";
+import { loadSnapshot, saveSnapshot } from "../storage/snapshot";
+import { resetAll } from "../reset";
+import { CanvasView } from "./CanvasView";
+import { Toolbar } from "./Toolbar";
+import { LayerList } from "./LayerList";
+import { DebugPanel } from "./DebugPanel";
 
 const DEFAULT_SETTINGS: Settings = {
-  color: '#000000',
+  color: "#000000",
   width: 4,
   selectedLayerId: null,
 };
@@ -110,8 +105,8 @@ export function PaintApp() {
       // レイヤーが1枚もない場合は初期レイヤーを追加
       if (state.order.length === 0) {
         const id = newLayerId();
-        const seq = await appendOp({ type: 'addLayer', layerId: id });
-        applyOne(state, { type: 'addLayer', layerId: id });
+        const seq = await appendOp({ type: "addLayer", layerId: id });
+        applyOne(state, { type: "addLayer", layerId: id });
         setHead(seq);
         setMaxSeq(seq);
         loaded.selectedLayerId = id;
@@ -125,8 +120,13 @@ export function PaintApp() {
     }
   }, []);
 
-  async function handleStrokeEnd(stroke: { layerId: string; color: string; width: number; points: { x: number; y: number }[] }) {
-    const op: Op = { type: 'stroke', ...stroke };
+  async function handleStrokeEnd(stroke: {
+    layerId: string;
+    color: string;
+    width: number;
+    points: { x: number; y: number }[];
+  }) {
+    const op: Op = { type: "stroke", ...stroke };
     const seq = await appendOp(op);
     // canvas はリアルタイム描画で更新済み
     setHead(seq);
@@ -136,7 +136,7 @@ export function PaintApp() {
 
   async function handleAddLayer() {
     const id = newLayerId();
-    const op: Op = { type: 'addLayer', layerId: id };
+    const op: Op = { type: "addLayer", layerId: id };
     const seq = await appendOp(op);
     applyOne(stateRef.current, op);
     setHead(seq);
@@ -148,7 +148,7 @@ export function PaintApp() {
   async function handleDeleteLayer(id: string) {
     const state = stateRef.current;
     if (!state.canvases.has(id)) return;
-    const op: Op = { type: 'deleteLayer', layerId: id };
+    const op: Op = { type: "deleteLayer", layerId: id };
     const seq = await appendOp(op);
     const idxBefore = state.order.indexOf(id);
     applyOne(state, op);
@@ -157,7 +157,9 @@ export function PaintApp() {
     // 削除後の選択: 同じインデックス、なければ末尾、なければ null
     let nextId: string | null = null;
     if (state.order.length > 0) {
-      nextId = state.order[Math.min(idxBefore, state.order.length - 1)] ?? state.order[state.order.length - 1];
+      nextId =
+        state.order[Math.min(idxBefore, state.order.length - 1)] ??
+        state.order[state.order.length - 1];
     }
     updateSettings((s) => ({ ...s, selectedLayerId: nextId }));
     bump();
@@ -171,11 +173,11 @@ export function PaintApp() {
     const state = stateRef.current;
     const op = entry.op;
 
-    if (op.type === 'addLayer') {
+    if (op.type === "addLayer") {
       // 追加を取り消し: レイヤーを除去
       state.canvases.delete(op.layerId);
       state.order = state.order.filter((x) => x !== op.layerId);
-    } else if (op.type === 'deleteLayer') {
+    } else if (op.type === "deleteLayer") {
       // 削除を取り消し: 復元してそのレイヤー宛strokeをリプレイ
       const c = createLayerCanvas();
       state.canvases.set(op.layerId, c);
@@ -195,7 +197,7 @@ export function PaintApp() {
     const targetId = op.layerId;
     const nextSelected = state.canvases.has(targetId)
       ? targetId
-      : state.order[state.order.length - 1] ?? null;
+      : (state.order[state.order.length - 1] ?? null);
     updateSettings((s) => ({ ...s, selectedLayerId: nextSelected }));
     bump();
   }
@@ -212,7 +214,7 @@ export function PaintApp() {
     const targetId = entry.op.layerId;
     const nextSelected = stateRef.current.canvases.has(targetId)
       ? targetId
-      : stateRef.current.order[stateRef.current.order.length - 1] ?? null;
+      : (stateRef.current.order[stateRef.current.order.length - 1] ?? null);
     updateSettings((s) => ({ ...s, selectedLayerId: nextSelected }));
     bump();
   }
@@ -240,8 +242,8 @@ export function PaintApp() {
   async function handleReset() {
     if (
       !window.confirm(
-        '全ストレージをクリアしてリロードします。\n' +
-          'All storages will be cleared and the page will reload.',
+        "全ストレージをクリアしてリロードします。\n" +
+          "All storages will be cleared and the page will reload.",
       )
     )
       return;
@@ -252,8 +254,13 @@ export function PaintApp() {
     return <div style={{ padding: 16 }}>Loading…</div>;
   }
 
+  // LayerState は HTMLCanvasElement の Map を含む共有可変オブジェクト。
+  // 各操作で直接ミューテートし bump() で再レンダリングに同期させる設計のため、
+  // render 時に ref の最新内容をローカル変数経由で参照する。
+  const state = stateRef.current;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100svh' }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100svh" }}>
       <Toolbar
         color={settings.color}
         width={settings.width}
@@ -266,17 +273,17 @@ export function PaintApp() {
         onSave={handleSave}
         onReset={handleReset}
       />
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
+            display: "flex",
+            flexDirection: "column",
             width: 360,
-            overflow: 'auto',
+            overflow: "auto",
           }}
         >
           <LayerList
-            order={stateRef.current.order}
+            order={state.order}
             selectedLayerId={settings.selectedLayerId}
             onSelect={(id) => updateSettings((s) => ({ ...s, selectedLayerId: id }))}
             onAdd={handleAddLayer}
@@ -287,15 +294,15 @@ export function PaintApp() {
         <div
           style={{
             flex: 1,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
             padding: 8,
           }}
         >
           <CanvasView
             key={version /* 強制再構築は不要だが state 参照が共有なので version を活用 */}
-            state={stateRef.current}
+            state={state}
             selectedLayerId={settings.selectedLayerId}
             color={settings.color}
             width={settings.width}
@@ -303,8 +310,8 @@ export function PaintApp() {
           />
         </div>
       </div>
-      <div style={{ padding: 4, fontSize: 11, color: '#888', fontFamily: 'monospace' }}>
-        head={head} max={maxSeq} layers={stateRef.current.order.length} canvas={CANVAS_SIZE}px
+      <div style={{ padding: 4, fontSize: 11, color: "#888", fontFamily: "monospace" }}>
+        head={head} max={maxSeq} layers={state.order.length} canvas={CANVAS_SIZE}px
       </div>
     </div>
   );

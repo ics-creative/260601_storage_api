@@ -13,9 +13,9 @@
  *   /meta.json              保存時の seq とレイヤー順序
  */
 
-const LAYERS_DIR = 'layers';
-const META_FILE = 'meta.json';
-const LAYER_EXT = '.bin';
+const LAYERS_DIR = "layers";
+const META_FILE = "meta.json";
+const LAYER_EXT = ".bin";
 
 /** OPFS に保存するメタ情報 */
 export type SnapshotMeta = {
@@ -75,7 +75,7 @@ export async function saveSnapshot(
 
   const metaFh = await root.getFileHandle(META_FILE, { create: true });
   const w = await metaFh.createWritable();
-  await w.write(new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+  await w.write(new Blob([JSON.stringify(meta)], { type: "application/json" }));
   await w.close();
 }
 
@@ -152,7 +152,7 @@ export async function listFiles(): Promise<{
   const layersDir = await getLayersDir(false);
   if (layersDir) {
     for await (const entry of layersDir.values()) {
-      if (entry.kind === 'file') {
+      if (entry.kind === "file") {
         const f = await (entry as FileSystemFileHandle).getFile();
         layers.push({ name: entry.name, size: f.size });
       }

@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from "lucide-react";
 
 type Props = {
   order: string[];
@@ -10,20 +10,17 @@ type Props = {
 
 export function LayerList({ order, selectedLayerId, onSelect, onAdd, onDelete }: Props) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', padding: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", padding: 8 }}>
       <div
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
           marginBottom: 4,
         }}
       >
         <strong>Layers</strong>
-        <button
-          onClick={onAdd}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-        >
+        <button onClick={onAdd} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
           <Plus size={14} /> Add layer
         </button>
       </div>
@@ -35,18 +32,18 @@ export function LayerList({ order, selectedLayerId, onSelect, onAdd, onDelete }:
           <div
             key={id}
             style={{
-              display: 'flex',
-              alignItems: 'center',
+              display: "flex",
+              alignItems: "center",
               gap: 4,
               padding: 4,
-              border: '1px solid #ccc',
+              border: "1px solid #ccc",
               borderTopWidth: idxFromTop === 0 ? 1 : 0,
-              background: isSelected ? '#e6f2ff' : 'transparent',
-              cursor: 'pointer',
+              background: isSelected ? "#e6f2ff" : "transparent",
+              cursor: "pointer",
             }}
             onClick={() => onSelect(id)}
           >
-            <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }}>
+            <span style={{ flex: 1, fontFamily: "monospace", fontSize: 12 }}>
               #{idx} {id.slice(0, 6)}
             </span>
             <button

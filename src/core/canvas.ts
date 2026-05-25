@@ -1,4 +1,4 @@
-import { CANVAS_SIZE, type Point, type StrokeOp } from './types';
+import { CANVAS_SIZE, type Point, type StrokeOp } from "./types";
 
 /**
  * レイヤー用のキャンバスは DOM外の OffscreenCanvas を使用。
@@ -16,12 +16,12 @@ type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 function setupStrokeStyle(ctx: Ctx2D, color: string, width: number): void {
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
 }
 
 export function drawStroke(canvas: OffscreenCanvas, stroke: StrokeOp): void {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (!ctx || stroke.points.length === 0) return;
   setupStrokeStyle(ctx, stroke.color, stroke.width);
   ctx.beginPath();
@@ -43,7 +43,7 @@ export function drawSegment(
   color: string,
   width: number,
 ): void {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (!ctx) return;
   setupStrokeStyle(ctx, color, width);
   ctx.beginPath();
@@ -53,7 +53,7 @@ export function drawSegment(
 }
 
 export function clearCanvas(canvas: OffscreenCanvas): void {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
@@ -68,9 +68,9 @@ export function composite(
   displayCanvas: HTMLCanvasElement,
   order: string[],
   canvases: Map<string, OffscreenCanvas>,
-  background: string = '#ffffff',
+  background: string = "#ffffff",
 ): void {
-  const ctx = displayCanvas.getContext('2d');
+  const ctx = displayCanvas.getContext("2d");
   if (!ctx) return;
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, displayCanvas.width, displayCanvas.height);
@@ -100,8 +100,8 @@ export function shouldKeepPoint(prev: Point | null, curr: Point, minDist: number
  * キャンバスサイズは固定 (CANVAS_SIZE) 前提で寸法情報は保存しない。
  */
 export async function canvasToBlob(canvas: OffscreenCanvas): Promise<Blob> {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('no 2d context');
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no 2d context");
   // ImageData.data は内部の Uint8ClampedArray を直接参照する (コピー無し)。
   // Blob のコンストラクタは TypedArray をそのまま受け付けてバイト列化する
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -109,9 +109,7 @@ export async function canvasToBlob(canvas: OffscreenCanvas): Promise<Blob> {
   // ReadableStream を `pipeThrough` で圧縮ストリームに繋いで、最終的に
   // `Response.blob()` でバッファに集約する定石パターン。
   // 'deflate-raw' は zlib ヘッダを持たない素の deflate (容量を最小化)
-  return await new Response(
-    raw.stream().pipeThrough(new CompressionStream('deflate-raw')),
-  ).blob();
+  return await new Response(raw.stream().pipeThrough(new CompressionStream("deflate-raw"))).blob();
 }
 
 /**
@@ -122,10 +120,10 @@ export async function canvasToBlob(canvas: OffscreenCanvas): Promise<Blob> {
  */
 export async function blobToCanvas(blob: Blob): Promise<OffscreenCanvas> {
   const ab = await new Response(
-    blob.stream().pipeThrough(new DecompressionStream('deflate-raw')),
+    blob.stream().pipeThrough(new DecompressionStream("deflate-raw")),
   ).arrayBuffer();
   const c = createLayerCanvas();
-  const ctx = c.getContext('2d')!;
+  const ctx = c.getContext("2d")!;
   // ArrayBuffer は所有権を渡す形で Uint8ClampedArray にラップする (コピー無し)
   const data = new Uint8ClampedArray(ab);
   ctx.putImageData(new ImageData(data, c.width, c.height), 0, 0);

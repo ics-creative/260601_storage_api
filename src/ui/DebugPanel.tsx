@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { countOps, getHead, getMaxSeq, peekRecentOps } from '../storage/history';
-import { listFiles } from '../storage/snapshot';
-import type { LogEntry } from '../core/types';
+import { useEffect, useState } from "react";
+import { countOps, getHead, getMaxSeq, peekRecentOps } from "../storage/history";
+import { listFiles } from "../storage/snapshot";
+import type { LogEntry } from "../core/types";
 
 const RECENT_LIMIT = 5;
 
@@ -26,8 +26,8 @@ function formatBytes(n: number): string {
 }
 
 function describeOp(e: LogEntry): string {
-  if (e.op.type === 'stroke') return `stroke(${e.op.points.length}pt)`;
-  if (e.op.type === 'addLayer') return `addLayer(${e.op.layerId.slice(0, 6)})`;
+  if (e.op.type === "stroke") return `stroke(${e.op.points.length}pt)`;
+  if (e.op.type === "addLayer") return `addLayer(${e.op.layerId.slice(0, 6)})`;
   return `deleteLayer(${e.op.layerId.slice(0, 6)})`;
 }
 
@@ -39,7 +39,7 @@ export function DebugPanel({ refreshKey }: Props) {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      setLsRaw(localStorage.getItem('paint:settings'));
+      setLsRaw(localStorage.getItem("paint:settings"));
 
       const [count, maxSeq, head, recent, files] = await Promise.all([
         countOps(),
@@ -62,11 +62,11 @@ export function DebugPanel({ refreshKey }: Props) {
     <div
       style={{
         padding: 8,
-        fontFamily: 'monospace',
+        fontFamily: "monospace",
         fontSize: 11,
         lineHeight: 1.5,
-        color: '#555',
-        borderTop: '1px solid #ddd',
+        color: "#555",
+        borderTop: "1px solid #ddd",
       }}
     >
       <Section title="LocalStorage">
@@ -84,27 +84,25 @@ export function DebugPanel({ refreshKey }: Props) {
         {idb ? <IdbView info={idb} /> : <div>...</div>}
       </Section>
 
-      <Section title="OPFS">
-        {opfs ? <OpfsTree info={opfs} /> : <div>...</div>}
-      </Section>
+      <Section title="OPFS">{opfs ? <OpfsTree info={opfs} /> : <div>...</div>}</Section>
     </div>
   );
 }
 
 const preStyle: React.CSSProperties = {
-  margin: '2px 0 0',
+  margin: "2px 0 0",
   padding: 4,
-  background: '#f4f4f4',
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-all',
-  fontFamily: 'inherit',
-  fontSize: 'inherit',
+  background: "#f4f4f4",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-all",
+  fontFamily: "inherit",
+  fontSize: "inherit",
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ fontWeight: 'bold', marginBottom: 2 }}>{title}</div>
+      <div style={{ fontWeight: "bold", marginBottom: 2 }}>{title}</div>
       {children}
     </div>
   );
@@ -115,8 +113,8 @@ function IdbView({ info }: { info: IdbInfo }) {
   const headInList = info.recent.some((e) => e.seq === info.head);
 
   // ▶ は全角幅。1スペースで埋めて、非ヘッド行の半角3スペースと視覚的に揃える
-  const HEAD_MARK = '▶ ';
-  const NO_MARK = '   ';
+  const HEAD_MARK = "▶ ";
+  const NO_MARK = "   ";
   const lines: string[] = [];
   if (omitted > 0) lines.push(`${NO_MARK}… (${omitted} older)`);
   if (!headInList) lines.push(`${HEAD_MARK}${String(info.head).padStart(3)}  (cursor.head)`);
@@ -125,7 +123,7 @@ function IdbView({ info }: { info: IdbInfo }) {
     lines.push(`${mark}${String(e.seq).padStart(3)}  ${describeOp(e)}`);
   }
   if (info.recent.length === 0 && headInList === false && info.head === 0) {
-    lines.push('   (empty)');
+    lines.push("   (empty)");
   }
 
   return (
@@ -133,18 +131,23 @@ function IdbView({ info }: { info: IdbInfo }) {
       <div>
         log : {info.count} entries (max seq={info.maxSeq})
       </div>
-      <pre style={preStyle}>{lines.join('\n')}</pre>
+      <pre style={preStyle}>{lines.join("\n")}</pre>
     </>
   );
 }
 
 function OpfsTree({ info }: { info: OpfsInfo }) {
-  const lines: string[] = ['/'];
+  const lines: string[] = ["/"];
   // 表示順: meta.json → layers/ (中身)
-  const entries: { name: string; size: number; isDir?: boolean; children?: { name: string; size: number }[] }[] = [];
-  if (info.meta) entries.push({ name: 'meta.json', size: info.meta.size });
+  const entries: {
+    name: string;
+    size: number;
+    isDir?: boolean;
+    children?: { name: string; size: number }[];
+  }[] = [];
+  if (info.meta) entries.push({ name: "meta.json", size: info.meta.size });
   if (info.layers.length > 0) {
-    entries.push({ name: 'layers', size: 0, isDir: true, children: info.layers });
+    entries.push({ name: "layers", size: 0, isDir: true, children: info.layers });
   }
 
   if (entries.length === 0) {
@@ -153,13 +156,13 @@ function OpfsTree({ info }: { info: OpfsInfo }) {
 
   entries.forEach((e, i) => {
     const last = i === entries.length - 1;
-    const branch = last ? '└─' : '├─';
+    const branch = last ? "└─" : "├─";
     if (e.isDir) {
       lines.push(`${branch} ${e.name}/`);
-      const indent = last ? '   ' : '│  ';
+      const indent = last ? "   " : "│  ";
       e.children!.forEach((c, j) => {
         const cLast = j === e.children!.length - 1;
-        const cBranch = cLast ? '└─' : '├─';
+        const cBranch = cLast ? "└─" : "├─";
         lines.push(`${indent}${cBranch} ${c.name}  ${formatBytes(c.size)}`);
       });
     } else {
@@ -167,5 +170,5 @@ function OpfsTree({ info }: { info: OpfsInfo }) {
     }
   });
 
-  return <pre style={preStyle}>{lines.join('\n')}</pre>;
+  return <pre style={preStyle}>{lines.join("\n")}</pre>;
 }
