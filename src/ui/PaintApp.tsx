@@ -23,6 +23,7 @@ import { resetAll } from '../reset';
 import { CanvasView } from './CanvasView';
 import { Toolbar } from './Toolbar';
 import { LayerList } from './LayerList';
+import { DebugPanel } from './DebugPanel';
 
 const DEFAULT_SETTINGS: Settings = {
   color: '#000000',
@@ -79,8 +80,11 @@ export function PaintApp() {
       const savedAt = snap?.meta.savedAtSeq ?? 0;
       if (dbMax > savedAt) {
         const apply = window.confirm(
-          `未保存の操作が ${dbMax - savedAt} 件あります。復元しますか？\n` +
-            `[OK] 差分を適用して復元 / [キャンセル] 未保存分を破棄`,
+          `OPFS スナップショットより新しい操作ログが IndexedDB に ${dbMax - savedAt} 件あります。復元しますか？\n` +
+            `IndexedDB has ${dbMax - savedAt} operations newer than the OPFS snapshot. Restore?\n` +
+            `\n` +
+            `OK: 差分を適用して復元 / Apply diff and restore\n` +
+            `Cancel: 未保存分を破棄 / Discard unsaved ops`,
         );
         if (apply) {
           const diff = await listOpsBetween(savedAt, dbMax);
@@ -216,6 +220,7 @@ export function PaintApp() {
       if (c) layers.push({ id, blob: await canvasToBlob(c) });
     }
     await saveSnapshot(layers, { savedAtSeq: head, layerOrder: state.order });
+    bump(); // OPFSの中身が変わったのでデバッグ表示を更新
   }
 
   async function handleReset() {
@@ -242,13 +247,23 @@ export function PaintApp() {
         onReset={handleReset}
       />
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        <LayerList
-          order={stateRef.current.order}
-          selectedLayerId={settings.selectedLayerId}
-          onSelect={(id) => setSettings((s) => ({ ...s, selectedLayerId: id }))}
-          onAdd={handleAddLayer}
-          onDelete={handleDeleteLayer}
-        />
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            width: 360,
+            overflow: 'auto',
+          }}
+        >
+          <LayerList
+            order={stateRef.current.order}
+            selectedLayerId={settings.selectedLayerId}
+            onSelect={(id) => setSettings((s) => ({ ...s, selectedLayerId: id }))}
+            onAdd={handleAddLayer}
+            onDelete={handleDeleteLayer}
+          />
+          <DebugPanel refreshKey={version} />
+        </div>
         <div
           style={{
             flex: 1,

@@ -193,6 +193,45 @@ export async function listOpsBetween(fromExclusive: number, toInclusive: number)
 }
 
 /**
+ * log ストアのエントリ件数を返す (デバッグ表示用)。
+ *
+ * `store.count()` は全件読まずにレコード数だけを取得できる軽量API。
+ */
+export async function countOps(): Promise<number> {
+  const db = await openDb();
+  const tx = db.transaction(STORE_LOG, 'readonly');
+  return await promisifyRequest(tx.objectStore(STORE_LOG).count());
+}
+
+/**
+ * 末尾から `n` 件のログエントリを取得 (デバッグ表示用)。
+ *
+ * `openCursor(null, 'prev')` で末尾から逆順に走査し、n 件取ったら止める。
+ * 返り値は呼び出し側の使い勝手のため昇順に並べ直す。
+ */
+export async function peekRecentOps(n: number): Promise<LogEntry[]> {
+  if (n <= 0) return [];
+  const db = await openDb();
+  const tx = db.transaction(STORE_LOG, 'readonly');
+  const store = tx.objectStore(STORE_LOG);
+  const collected: LogEntry[] = [];
+  await new Promise<void>((resolve, reject) => {
+    const cReq = store.openCursor(null, 'prev');
+    cReq.onsuccess = () => {
+      const cur = cReq.result;
+      if (cur && collected.length < n) {
+        collected.push(cur.value as LogEntry);
+        cur.continue();
+      } else {
+        resolve();
+      }
+    };
+    cReq.onerror = () => reject(cReq.error);
+  });
+  return collected.reverse();
+}
+
+/**
  * 指定 seq のログエントリを 1件取得 (Redoで適用するOpを引く時に使用)。
  *
  * `store.get(key)` は該当キーが無ければ `undefined` を返す (例外ではない)。

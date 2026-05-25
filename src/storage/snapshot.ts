@@ -117,6 +117,44 @@ export async function loadSnapshot(): Promise<{
 }
 
 /**
+ * デバッグ表示用に、スナップショット領域のファイル一覧を軽量に取得する。
+ *
+ * `loadSnapshot` と違い ImageBitmap は作らず、ファイル名とバイト数のみ収集する。
+ * meta はそのまま JSON.parse して返す。
+ *
+ * - `dir.values()` は `FileSystemHandle` の AsyncIterable を返す
+ *   (`FileSystemDirectoryHandle` は AsyncIterable を実装)
+ * - `handle.kind` で `'file'` / `'directory'` を判定できる
+ */
+export async function listFiles(): Promise<{
+  meta: { size: number; data: SnapshotMeta } | null;
+  layers: { name: string; size: number }[];
+}> {
+  const root = await getRoot();
+
+  let meta: { size: number; data: SnapshotMeta } | null = null;
+  try {
+    const fh = await root.getFileHandle(META_FILE);
+    const f = await fh.getFile();
+    meta = { size: f.size, data: JSON.parse(await f.text()) as SnapshotMeta };
+  } catch {
+    // meta無し
+  }
+
+  const layers: { name: string; size: number }[] = [];
+  const layersDir = await getLayersDir(false);
+  if (layersDir) {
+    for await (const entry of layersDir.values()) {
+      if (entry.kind === 'file') {
+        const f = await (entry as FileSystemFileHandle).getFile();
+        layers.push({ name: entry.name, size: f.size });
+      }
+    }
+  }
+  return { meta, layers };
+}
+
+/**
  * OPFS 内のスナップショット関連エントリを削除する (リセット時)。
  *
  * `removeEntry` は対象が無いと例外を投げるので、それぞれ try/catch で握り潰す。
