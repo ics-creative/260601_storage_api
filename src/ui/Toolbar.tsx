@@ -1,4 +1,4 @@
-import { Save, Undo2, Redo2, RotateCcw } from 'lucide-react';
+import { Save, Undo2, Redo2, X } from 'lucide-react';
 
 type Props = {
   color: string;
@@ -11,6 +11,12 @@ type Props = {
   onRedo: () => void;
   onSave: () => void;
   onReset: () => void;
+};
+
+const btnStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
 };
 
 export function Toolbar({
@@ -42,17 +48,17 @@ export function Toolbar({
         aria-label="太さ"
       />
       <span style={{ width: 28, textAlign: 'right' }}>{width}px</span>
-      <button onClick={onUndo} disabled={!canUndo} title="Undo">
-        <Undo2 size={16} />
+      <button onClick={onUndo} disabled={!canUndo} style={btnStyle}>
+        <Undo2 size={14} /> Undo
       </button>
-      <button onClick={onRedo} disabled={!canRedo} title="Redo">
-        <Redo2 size={16} />
+      <button onClick={onRedo} disabled={!canRedo} style={btnStyle}>
+        <Redo2 size={14} /> Redo
       </button>
-      <button onClick={onSave} title="Save (OPFS)">
-        <Save size={16} />
+      <button onClick={onSave} style={btnStyle}>
+        <Save size={14} /> Save
       </button>
-      <button onClick={onReset} title="Reset all storage">
-        <RotateCcw size={16} />
+      <button onClick={onReset} style={btnStyle}>
+        <X size={14} /> Reset
       </button>
     </div>
   );

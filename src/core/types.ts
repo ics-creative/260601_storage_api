@@ -35,5 +35,5 @@ export type LogEntry = {
 
 export type LayerState = {
   order: string[];
-  canvases: Map<string, HTMLCanvasElement>;
+  canvases: Map<string, OffscreenCanvas>;
 };

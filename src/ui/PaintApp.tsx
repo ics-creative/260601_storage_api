@@ -6,7 +6,7 @@ import {
   type Settings,
 } from '../core/types';
 import { applyOne, emptyState, replayLayer } from '../core/replay';
-import { canvasToBlob, createLayerCanvas } from '../core/canvas';
+import { blobToCanvas, canvasToBlob, createLayerCanvas } from '../core/canvas';
 import { loadSettings, saveSettings } from '../storage/settings';
 import {
   appendOp,
@@ -46,11 +46,17 @@ export function PaintApp() {
 
   const bump = () => setVersion((v) => v + 1);
 
-  // 設定変更を都度 LocalStorage に保存
-  useEffect(() => {
-    if (!ready) return;
-    saveSettings(settings);
-  }, [settings, ready]);
+  // ユーザー由来の設定変更を行うラッパー。LocalStorage への書き込みを伴う。
+  // 起動時の loadSettings から復元したまま変更されない場合は何も書かないことで、
+  // 設定キーは「初めて変更した瞬間」に LocalStorage に出現する。
+  const updateSettings = (updater: (s: Settings) => Settings) => {
+    setSettings((s) => {
+      const next = updater(s);
+      saveSettings(next);
+      return next;
+    });
+    bump(); // LocalStorage 変更を DebugPanel に即反映させる
+  };
 
   // 起動シーケンス
   useEffect(() => {
@@ -65,13 +71,12 @@ export function PaintApp() {
       const snap = await loadSnapshot();
       const state = stateRef.current;
 
-      // OPFSスナップショットがあれば bitmap を canvas に復元
+      // OPFSスナップショットがあれば Blob を canvas に復元 (展開は並列実行)
       if (snap) {
-        for (const { id, bitmap } of snap.layers) {
-          const c = createLayerCanvas();
-          c.getContext('2d')!.drawImage(bitmap, 0, 0);
-          state.canvases.set(id, c);
-        }
+        const decoded = await Promise.all(
+          snap.layers.map(async ({ id, blob }) => ({ id, canvas: await blobToCanvas(blob) })),
+        );
+        for (const { id, canvas } of decoded) state.canvases.set(id, canvas);
         state.order = snap.layers.map((l) => l.id);
       }
 
@@ -136,7 +141,7 @@ export function PaintApp() {
     applyOne(stateRef.current, op);
     setHead(seq);
     setMaxSeq(seq);
-    setSettings((s) => ({ ...s, selectedLayerId: id }));
+    updateSettings((s) => ({ ...s, selectedLayerId: id }));
     bump();
   }
 
@@ -154,7 +159,7 @@ export function PaintApp() {
     if (state.order.length > 0) {
       nextId = state.order[Math.min(idxBefore, state.order.length - 1)] ?? state.order[state.order.length - 1];
     }
-    setSettings((s) => ({ ...s, selectedLayerId: nextId }));
+    updateSettings((s) => ({ ...s, selectedLayerId: nextId }));
     bump();
   }
 
@@ -191,7 +196,7 @@ export function PaintApp() {
     const nextSelected = state.canvases.has(targetId)
       ? targetId
       : state.order[state.order.length - 1] ?? null;
-    setSettings((s) => ({ ...s, selectedLayerId: nextSelected }));
+    updateSettings((s) => ({ ...s, selectedLayerId: nextSelected }));
     bump();
   }
 
@@ -208,23 +213,38 @@ export function PaintApp() {
     const nextSelected = stateRef.current.canvases.has(targetId)
       ? targetId
       : stateRef.current.order[stateRef.current.order.length - 1] ?? null;
-    setSettings((s) => ({ ...s, selectedLayerId: nextSelected }));
+    updateSettings((s) => ({ ...s, selectedLayerId: nextSelected }));
     bump();
   }
 
   async function handleSave() {
     const state = stateRef.current;
-    const layers: { id: string; blob: Blob }[] = [];
-    for (const id of state.order) {
-      const c = state.canvases.get(id);
-      if (c) layers.push({ id, blob: await canvasToBlob(c) });
-    }
+    // 各レイヤーの圧縮は独立に並列実行できる。順序は state.order の通り維持される
+    const layers = (
+      await Promise.all(
+        state.order.map(async (id) => {
+          const c = state.canvases.get(id);
+          if (!c) return null;
+          return { id, blob: await canvasToBlob(c) };
+        }),
+      )
+    ).filter((l): l is { id: string; blob: Blob } => l !== null);
     await saveSnapshot(layers, { savedAtSeq: head, layerOrder: state.order });
     bump(); // OPFSの中身が変わったのでデバッグ表示を更新
+    window.alert(
+      `${layers.length} 枚のレイヤーを OPFS に保存しました。\n` +
+        `Saved ${layers.length} layer(s) to OPFS.`,
+    );
   }
 
   async function handleReset() {
-    if (!window.confirm('全ストレージをクリアしてリロードします')) return;
+    if (
+      !window.confirm(
+        '全ストレージをクリアしてリロードします。\n' +
+          'All storages will be cleared and the page will reload.',
+      )
+    )
+      return;
     await resetAll();
   }
 
@@ -239,8 +259,8 @@ export function PaintApp() {
         width={settings.width}
         canUndo={head > 0}
         canRedo={head < maxSeq}
-        onColorChange={(color) => setSettings((s) => ({ ...s, color }))}
-        onWidthChange={(width) => setSettings((s) => ({ ...s, width }))}
+        onColorChange={(color) => updateSettings((s) => ({ ...s, color }))}
+        onWidthChange={(width) => updateSettings((s) => ({ ...s, width }))}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onSave={handleSave}
@@ -258,7 +278,7 @@ export function PaintApp() {
           <LayerList
             order={stateRef.current.order}
             selectedLayerId={settings.selectedLayerId}
-            onSelect={(id) => setSettings((s) => ({ ...s, selectedLayerId: id }))}
+            onSelect={(id) => updateSettings((s) => ({ ...s, selectedLayerId: id }))}
             onAdd={handleAddLayer}
             onDelete={handleDeleteLayer}
           />

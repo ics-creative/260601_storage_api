@@ -101,6 +101,7 @@ export function CanvasView({ state, selectedLayerId, color, width, onStrokeEnd }
         background: '#fff',
         border: '1px solid #ccc',
         touchAction: 'none',
+        cursor: 'crosshair',
       }}
     />
   );

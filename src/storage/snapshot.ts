@@ -9,12 +9,13 @@
  * - 容量はオリジンの永続化ストレージ枠で、IndexedDB と同じく十分に大きい
  *
  * 本ファイルでは以下の構成で保存する:
- *   /layers/{layerId}.png   各レイヤーの PNG
+ *   /layers/{layerId}.bin   各レイヤーの raw RGBA を deflate-raw 圧縮したもの
  *   /meta.json              保存時の seq とレイヤー順序
  */
 
 const LAYERS_DIR = 'layers';
 const META_FILE = 'meta.json';
+const LAYER_EXT = '.bin';
 
 /** OPFS に保存するメタ情報 */
 export type SnapshotMeta = {
@@ -43,13 +44,12 @@ async function getLayersDir(create: boolean): Promise<FileSystemDirectoryHandle 
 }
 
 /**
- * 全レイヤーを PNG として書き出し、メタ情報を保存する (保存ボタン押下時)。
+ * 全レイヤー Blob とメタ情報を OPFS に書き出す (保存ボタン押下時)。
  *
- * - 旧スナップショットの残骸を残さないため、`layers/` ディレクトリを毎回 `removeEntry`
- *   ({ recursive: true }) で消してから作り直す
+ * - 旧スナップショットの残骸を残さないため、`layers/` を毎回削除してから作り直す
  * - 書き込み手順は `getFileHandle({create:true})` → `createWritable()` で
  *   `FileSystemWritableFileStream` を取得 → `write(blob)` → `close()`
- * - `close()` を呼ぶまでファイルは確定しないので忘れずに await する
+ * - レイヤー間は独立して書けるので `Promise.all` で並列化する
  */
 export async function saveSnapshot(
   layers: { id: string; blob: Blob }[],
@@ -64,12 +64,14 @@ export async function saveSnapshot(
   }
   const layersDir = await root.getDirectoryHandle(LAYERS_DIR, { create: true });
 
-  for (const { id, blob } of layers) {
-    const fh = await layersDir.getFileHandle(`${id}.png`, { create: true });
-    const w = await fh.createWritable();
-    await w.write(blob);
-    await w.close();
-  }
+  await Promise.all(
+    layers.map(async ({ id, blob }) => {
+      const fh = await layersDir.getFileHandle(`${id}${LAYER_EXT}`, { create: true });
+      const w = await fh.createWritable();
+      await w.write(blob);
+      await w.close();
+    }),
+  );
 
   const metaFh = await root.getFileHandle(META_FILE, { create: true });
   const w = await metaFh.createWritable();
@@ -78,16 +80,18 @@ export async function saveSnapshot(
 }
 
 /**
- * 保存済みスナップショットを読み込み、各レイヤーを ImageBitmap として返す。
+ * 保存済みスナップショットの Blob 群とメタ情報を読み込んで返す。
  * スナップショットが無ければ `null`。
  *
+ * Blob の中身は `core/canvas.ts#blobToCanvas` で復元する想定なので、
+ * このモジュールはデコードに関与しない。
+ *
  * - `getFileHandle()` は対象が無いと例外 (NotFoundError) を投げるので try/catch で判定
- * - PNG → ImageBitmap は `createImageBitmap(blob)` で一発変換 (canvas に drawImage できる形)
- * - meta.layerOrder の順序通りに読み込むことで、復元後の重ね順を保証する
+ * - レイヤー読み込みも互いに独立なので並列化する
  */
 export async function loadSnapshot(): Promise<{
   meta: SnapshotMeta;
-  layers: { id: string; bitmap: ImageBitmap }[];
+  layers: { id: string; blob: Blob }[];
 } | null> {
   const root = await getRoot();
   let metaFh: FileSystemFileHandle;
@@ -100,26 +104,29 @@ export async function loadSnapshot(): Promise<{
   const meta = JSON.parse(await metaFile.text()) as SnapshotMeta;
 
   const layersDir = await getLayersDir(false);
-  const layers: { id: string; bitmap: ImageBitmap }[] = [];
-  if (layersDir) {
-    for (const id of meta.layerOrder) {
+  if (!layersDir) return { meta, layers: [] };
+
+  const results = await Promise.all(
+    meta.layerOrder.map(async (id) => {
       try {
-        const fh = await layersDir.getFileHandle(`${id}.png`);
+        const fh = await layersDir.getFileHandle(`${id}${LAYER_EXT}`);
         const file = await fh.getFile();
-        const bitmap = await createImageBitmap(file);
-        layers.push({ id, bitmap });
+        return { id, blob: file as Blob };
       } catch {
-        // 個別ファイル欠損は無視 (全消し状態と区別したいので例外を握りつぶす)
+        return null; // 個別ファイル欠損は無視
       }
-    }
-  }
-  return { meta, layers };
+    }),
+  );
+  return {
+    meta,
+    layers: results.filter((r): r is { id: string; blob: Blob } => r !== null),
+  };
 }
 
 /**
  * デバッグ表示用に、スナップショット領域のファイル一覧を軽量に取得する。
  *
- * `loadSnapshot` と違い ImageBitmap は作らず、ファイル名とバイト数のみ収集する。
+ * `loadSnapshot` と違いバイト列を読み出さず、ファイル名とサイズだけ収集する。
  * meta はそのまま JSON.parse して返す。
  *
  * - `dir.values()` は `FileSystemHandle` の AsyncIterable を返す
