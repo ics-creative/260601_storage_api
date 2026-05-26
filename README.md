@@ -1,73 +1,39 @@
-# React + TypeScript + Vite
+# storage-demo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+ブラウザ標準の3つのストレージAPI (**Web Storage / IndexedDB / OPFS**) の使い分けを学ぶための、簡易ペイントツールのデモアプリです。
 
-Currently, two official plugins are available:
+UI部分は React で実装していますが、本題であるストレージまわりは **React に依存しないピュアな TypeScript** で書いてあるので、`src/storage/` の各ファイルだけを読めば API の使い方が追えるようになっています。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## ストレージの役割分担
 
-## React Compiler
+ペイントアプリで扱う3種類のデータを、それぞれに適したAPIへ振り分けています。
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| データ | 特性 | 採用API |
+| --- | --- | --- |
+| 設定 (色・ブラシ太さなど) | 小さな key-value、同期で読めると楽 | **Web Storage (localStorage)** |
+| 操作ログ (Undo/Redo履歴) | レコード単位で追記・範囲取得したい構造化データ | **IndexedDB** |
+| レイヤーのビットマップ | 大きなバイナリをそのまま保存したい | **OPFS** |
 
-## Expanding the ESLint configuration
+## 各モジュールの紹介
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### [src/storage/settings.ts](src/storage/settings.ts) — Web Storage
 
-```js
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
+`localStorage` を使った設定値の永続化。同期APIで扱いが手軽な代わりに、文字列しか保存できず容量も5MB程度。本デモではブラシ色や太さなどの小さなオブジェクトを `JSON.stringify` して保存しています。
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### [src/storage/history.ts](src/storage/history.ts) — IndexedDB
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
-```
+操作ログ (描画ストローク・レイヤー追加など) と Undo/Redo カーソルを保持します。`log` ストアは `autoIncrement` で seq を自動採番し、`cursor` ストアで現在の head 位置を管理。`IDBKeyRange` を使った範囲削除・範囲取得や、`onversionchange` を絡めた `deleteDatabase` の作法など、IndexedDB の素のAPIを Promise 化しつつ一通り触っています。
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### [src/storage/snapshot.ts](src/storage/snapshot.ts) — OPFS
 
-```js
-// eslint.config.js
-import reactX from "eslint-plugin-react-x";
-import reactDom from "eslint-plugin-react-dom";
+各レイヤーの RGBA バイト列を `deflate-raw` で圧縮し、`layers/{layerId}.bin` として保存します。`navigator.storage.getDirectory()` から `FileSystemDirectoryHandle` を辿り、`createWritable()` で書き込み、`AsyncIterable` でディレクトリを列挙、といった OPFS / File System Access API の基本操作をまとめて確認できます。
 
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs["recommended-typescript"],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+## 開発コマンド
+
+```bash
+npm install
+npm run dev        # 開発サーバ
+npm run build      # 型チェック + 本番ビルド
+npm run lint       # oxlint
+npm run format     # oxfmt
 ```
