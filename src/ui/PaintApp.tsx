@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { CANVAS_SIZE, type LayerState, type Op, type Settings } from "../core/types";
 import { applyOne, emptyState, replayLayer } from "../core/replay";
 import { blobToCanvas, canvasToBlob, createLayerCanvas } from "../core/canvas";
@@ -106,14 +107,10 @@ export function PaintApp() {
         setMaxSeq(persistedMaxSeq);
       }
 
-      // レイヤーが1枚もない場合は初期レイヤーを追加
+      // 初期状態をできるだけ空に寄せたいため、起動時には何もログらない。
+      // レイヤー0枚の場合は描画領域に Add layer CTA を出してユーザー操作を促す
       if (state.order.length === 0) {
-        const initialLayerId = newLayerId();
-        const seq = await appendOp({ type: "addLayer", layerId: initialLayerId });
-        applyOne(state, { type: "addLayer", layerId: initialLayerId });
-        setHead(seq);
-        setMaxSeq(seq);
-        loadedSettings.selectedLayerId = initialLayerId;
+        loadedSettings.selectedLayerId = null;
       } else if (
         !loadedSettings.selectedLayerId ||
         !state.canvases.has(loadedSettings.selectedLayerId)
@@ -309,14 +306,30 @@ export function PaintApp() {
             padding: 8,
           }}
         >
-          <CanvasView
-            key={version /* 強制再構築は不要だが state 参照が共有なので version を活用 */}
-            state={state}
-            selectedLayerId={settings.selectedLayerId}
-            color={settings.color}
-            width={settings.width}
-            onStrokeEnd={handleStrokeEnd}
-          />
+          {state.order.length === 0 ? (
+            <button
+              onClick={handleAddLayer}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "12px 20px",
+                fontSize: 16,
+                cursor: "pointer",
+              }}
+            >
+              <Plus size={18} /> Add layer
+            </button>
+          ) : (
+            <CanvasView
+              key={version /* 強制再構築は不要だが state 参照が共有なので version を活用 */}
+              state={state}
+              selectedLayerId={settings.selectedLayerId}
+              color={settings.color}
+              width={settings.width}
+              onStrokeEnd={handleStrokeEnd}
+            />
+          )}
         </div>
       </div>
       <div style={{ padding: 4, fontSize: 11, color: "#888", fontFamily: "monospace" }}>
