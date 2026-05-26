@@ -2,6 +2,8 @@
 
 ブラウザ標準の3つのストレージAPI (**Web Storage / IndexedDB / OPFS**) の使い分けを学ぶための、簡易ペイントツールのデモアプリです。
 
+**デモページ**: <https://ics-creative.github.io/260601_storage_api/>
+
 UI部分は React で実装していますが、本題であるストレージまわりは **React に依存しないピュアな TypeScript** で書いてあるので、`src/storage/` の各ファイルだけを読めば API の使い方が追えるようになっています。
 
 ## ストレージの役割分担
