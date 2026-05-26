@@ -25,23 +25,23 @@ const STORE_CURSOR = "cursor";
 const CURSOR_KEY = "head";
 
 /** IDBRequest を Promise 化する小道具 (IDB は素ではコールバックAPI) */
-function promisifyRequest<T>(req: IDBRequest<T>): Promise<T> {
+function promisifyRequest<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
 }
 
 /** Transaction の完了を Promise 化する */
-function promisifyTx(tx: IDBTransaction): Promise<void> {
+function promisifyTransaction(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
   });
 }
 
-let dbPromise: Promise<IDBDatabase> | null = null;
+let databasePromise: Promise<IDBDatabase> | null = null;
 
 /**
  * DBを開く (なければ初回起動で作成)。接続は使い回す。
@@ -55,32 +55,32 @@ let dbPromise: Promise<IDBDatabase> | null = null;
  *   ここで close する
  */
 export function openDb(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_LOG)) {
+  if (databasePromise) return databasePromise;
+  databasePromise = new Promise((resolve, reject) => {
+    const openRequest = indexedDB.open(DB_NAME, DB_VERSION);
+    openRequest.onupgradeneeded = () => {
+      const database = openRequest.result;
+      if (!database.objectStoreNames.contains(STORE_LOG)) {
         // keyPath: 'seq' で各レコードの seq プロパティを主キーとする
         // autoIncrement で seq を自動採番させる (put時に seq を未指定にすれば連番が入る)
-        db.createObjectStore(STORE_LOG, { keyPath: "seq", autoIncrement: true });
+        database.createObjectStore(STORE_LOG, { keyPath: "seq", autoIncrement: true });
       }
-      if (!db.objectStoreNames.contains(STORE_CURSOR)) {
+      if (!database.objectStoreNames.contains(STORE_CURSOR)) {
         // keyPath なしのストア。put(value, key) でキーを明示する形になる
-        db.createObjectStore(STORE_CURSOR);
+        database.createObjectStore(STORE_CURSOR);
       }
     };
-    req.onsuccess = () => {
-      const db = req.result;
-      db.onversionchange = () => {
-        db.close();
-        dbPromise = null;
+    openRequest.onsuccess = () => {
+      const database = openRequest.result;
+      database.onversionchange = () => {
+        database.close();
+        databasePromise = null;
       };
-      resolve(db);
+      resolve(database);
     };
-    req.onerror = () => reject(req.error);
+    openRequest.onerror = () => reject(openRequest.error);
   });
-  return dbPromise;
+  return databasePromise;
 }
 
 /**
@@ -90,37 +90,37 @@ export function openDb(): Promise<IDBDatabase> {
  * これにより、Undo して新規操作した時に再現できない「分岐」が残らないようにする。
  *
  * - `IDBKeyRange.lowerBound(head, true)` で head より大きいキーの範囲を表現
- * - `openCursor` でその範囲を1件ずつ走査し、`cur.delete()` で削除
+ * - `openCursor` でその範囲を1件ずつ走査し、`cursor.delete()` で削除
  * - `logStore.add({ op })` で seq 未指定にすることで autoIncrement に任せる
  * - 同一 transaction 内で複数ストアを更新することで原子性を担保
  */
 export async function appendOp(op: Op): Promise<number> {
-  const db = await openDb();
-  const tx = db.transaction([STORE_LOG, STORE_CURSOR], "readwrite");
-  const logStore = tx.objectStore(STORE_LOG);
-  const cursorStore = tx.objectStore(STORE_CURSOR);
+  const database = await openDb();
+  const transaction = database.transaction([STORE_LOG, STORE_CURSOR], "readwrite");
+  const logStore = transaction.objectStore(STORE_LOG);
+  const cursorStore = transaction.objectStore(STORE_CURSOR);
 
   const head = (await promisifyRequest<number | undefined>(cursorStore.get(CURSOR_KEY))) ?? 0;
 
   // head より未来のログを削除 (Redoスタック破棄)
   await new Promise<void>((resolve, reject) => {
-    const range = IDBKeyRange.lowerBound(head, true);
-    const cReq = logStore.openCursor(range);
-    cReq.onsuccess = () => {
-      const cur = cReq.result;
-      if (cur) {
-        cur.delete();
-        cur.continue();
+    const futureRange = IDBKeyRange.lowerBound(head, true);
+    const cursorRequest = logStore.openCursor(futureRange);
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
       } else {
         resolve();
       }
     };
-    cReq.onerror = () => reject(cReq.error);
+    cursorRequest.onerror = () => reject(cursorRequest.error);
   });
 
   const newSeq = await promisifyRequest<IDBValidKey>(logStore.add({ op }));
   cursorStore.put(newSeq, CURSOR_KEY);
-  await promisifyTx(tx);
+  await promisifyTransaction(transaction);
   return newSeq as number;
 }
 
@@ -130,12 +130,12 @@ export async function appendOp(op: Op): Promise<number> {
  * cursor ストアは keyPath 無しなので、`get(key)` で外部キーを指定して値を引く形式。
  */
 export async function getHead(): Promise<number> {
-  const db = await openDb();
-  const tx = db.transaction(STORE_CURSOR, "readonly");
-  const v = await promisifyRequest<number | undefined>(
-    tx.objectStore(STORE_CURSOR).get(CURSOR_KEY),
+  const database = await openDb();
+  const transaction = database.transaction(STORE_CURSOR, "readonly");
+  const headValue = await promisifyRequest<number | undefined>(
+    transaction.objectStore(STORE_CURSOR).get(CURSOR_KEY),
   );
-  return v ?? 0;
+  return headValue ?? 0;
 }
 
 /**
@@ -144,10 +144,10 @@ export async function getHead(): Promise<number> {
  * `put(value, key)` は既存値があれば上書き。`add` だと既存キーで失敗するので、上書きには `put` を使う。
  */
 export async function setHead(seq: number): Promise<void> {
-  const db = await openDb();
-  const tx = db.transaction(STORE_CURSOR, "readwrite");
-  tx.objectStore(STORE_CURSOR).put(seq, CURSOR_KEY);
-  await promisifyTx(tx);
+  const database = await openDb();
+  const transaction = database.transaction(STORE_CURSOR, "readwrite");
+  transaction.objectStore(STORE_CURSOR).put(seq, CURSOR_KEY);
+  await promisifyTransaction(transaction);
 }
 
 /**
@@ -157,10 +157,12 @@ export async function setHead(seq: number): Promise<void> {
  * `getAll` で全件取って末尾を見るよりオーバーヘッドが小さい。
  */
 export async function getMaxSeq(): Promise<number> {
-  const db = await openDb();
-  const tx = db.transaction(STORE_LOG, "readonly");
-  const cursor = await promisifyRequest(tx.objectStore(STORE_LOG).openCursor(null, "prev"));
-  return cursor ? (cursor.key as number) : 0;
+  const database = await openDb();
+  const transaction = database.transaction(STORE_LOG, "readonly");
+  const lastCursor = await promisifyRequest(
+    transaction.objectStore(STORE_LOG).openCursor(null, "prev"),
+  );
+  return lastCursor ? (lastCursor.key as number) : 0;
 }
 
 /**
@@ -171,12 +173,12 @@ export async function getMaxSeq(): Promise<number> {
  */
 export async function listOpsUpTo(seq: number): Promise<LogEntry[]> {
   if (seq <= 0) return [];
-  const db = await openDb();
-  const tx = db.transaction(STORE_LOG, "readonly");
-  const store = tx.objectStore(STORE_LOG);
+  const database = await openDb();
+  const transaction = database.transaction(STORE_LOG, "readonly");
+  const logStore = transaction.objectStore(STORE_LOG);
   const range = IDBKeyRange.upperBound(seq);
-  const all = await promisifyRequest(store.getAll(range));
-  return all as LogEntry[];
+  const entries = await promisifyRequest(logStore.getAll(range));
+  return entries as LogEntry[];
 }
 
 /**
@@ -190,11 +192,11 @@ export async function listOpsBetween(
   toInclusive: number,
 ): Promise<LogEntry[]> {
   if (toInclusive <= fromExclusive) return [];
-  const db = await openDb();
-  const tx = db.transaction(STORE_LOG, "readonly");
+  const database = await openDb();
+  const transaction = database.transaction(STORE_LOG, "readonly");
   const range = IDBKeyRange.bound(fromExclusive, toInclusive, true, false);
-  const all = await promisifyRequest(tx.objectStore(STORE_LOG).getAll(range));
-  return all as LogEntry[];
+  const entries = await promisifyRequest(transaction.objectStore(STORE_LOG).getAll(range));
+  return entries as LogEntry[];
 }
 
 /**
@@ -203,35 +205,35 @@ export async function listOpsBetween(
  * `store.count()` は全件読まずにレコード数だけを取得できる軽量API。
  */
 export async function countOps(): Promise<number> {
-  const db = await openDb();
-  const tx = db.transaction(STORE_LOG, "readonly");
-  return await promisifyRequest(tx.objectStore(STORE_LOG).count());
+  const database = await openDb();
+  const transaction = database.transaction(STORE_LOG, "readonly");
+  return await promisifyRequest(transaction.objectStore(STORE_LOG).count());
 }
 
 /**
- * 末尾から `n` 件のログエントリを取得 (デバッグ表示用)。
+ * 末尾から `limit` 件のログエントリを取得 (デバッグ表示用)。
  *
- * `openCursor(null, 'prev')` で末尾から逆順に走査し、n 件取ったら止める。
+ * `openCursor(null, 'prev')` で末尾から逆順に走査し、limit 件取ったら止める。
  * 返り値は呼び出し側の使い勝手のため昇順に並べ直す。
  */
-export async function peekRecentOps(n: number): Promise<LogEntry[]> {
-  if (n <= 0) return [];
-  const db = await openDb();
-  const tx = db.transaction(STORE_LOG, "readonly");
-  const store = tx.objectStore(STORE_LOG);
+export async function peekRecentOps(limit: number): Promise<LogEntry[]> {
+  if (limit <= 0) return [];
+  const database = await openDb();
+  const transaction = database.transaction(STORE_LOG, "readonly");
+  const logStore = transaction.objectStore(STORE_LOG);
   const collected: LogEntry[] = [];
   await new Promise<void>((resolve, reject) => {
-    const cReq = store.openCursor(null, "prev");
-    cReq.onsuccess = () => {
-      const cur = cReq.result;
-      if (cur && collected.length < n) {
-        collected.push(cur.value as LogEntry);
-        cur.continue();
+    const cursorRequest = logStore.openCursor(null, "prev");
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (cursor && collected.length < limit) {
+        collected.push(cursor.value as LogEntry);
+        cursor.continue();
       } else {
         resolve();
       }
     };
-    cReq.onerror = () => reject(cReq.error);
+    cursorRequest.onerror = () => reject(cursorRequest.error);
   });
   return collected.reverse();
 }
@@ -242,10 +244,10 @@ export async function peekRecentOps(n: number): Promise<LogEntry[]> {
  * `store.get(key)` は該当キーが無ければ `undefined` を返す (例外ではない)。
  */
 export async function getOp(seq: number): Promise<LogEntry | null> {
-  const db = await openDb();
-  const tx = db.transaction(STORE_LOG, "readonly");
-  const v = await promisifyRequest(tx.objectStore(STORE_LOG).get(seq));
-  return (v as LogEntry | undefined) ?? null;
+  const database = await openDb();
+  const transaction = database.transaction(STORE_LOG, "readonly");
+  const entry = await promisifyRequest(transaction.objectStore(STORE_LOG).get(seq));
+  return (entry as LogEntry | undefined) ?? null;
 }
 
 /**
@@ -255,23 +257,23 @@ export async function getOp(seq: number): Promise<LogEntry | null> {
  * 削除対象が広範囲になるので、`getAll` + `delete` ループではなく cursor 走査でメモリを節約する。
  */
 export async function truncateAfter(seq: number): Promise<void> {
-  const db = await openDb();
-  const tx = db.transaction([STORE_LOG, STORE_CURSOR], "readwrite");
-  const store = tx.objectStore(STORE_LOG);
+  const database = await openDb();
+  const transaction = database.transaction([STORE_LOG, STORE_CURSOR], "readwrite");
+  const logStore = transaction.objectStore(STORE_LOG);
   await new Promise<void>((resolve, reject) => {
-    const range = IDBKeyRange.lowerBound(seq, true);
-    const cReq = store.openCursor(range);
-    cReq.onsuccess = () => {
-      const cur = cReq.result;
-      if (cur) {
-        cur.delete();
-        cur.continue();
+    const futureRange = IDBKeyRange.lowerBound(seq, true);
+    const cursorRequest = logStore.openCursor(futureRange);
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
       } else resolve();
     };
-    cReq.onerror = () => reject(cReq.error);
+    cursorRequest.onerror = () => reject(cursorRequest.error);
   });
-  tx.objectStore(STORE_CURSOR).put(seq, CURSOR_KEY);
-  await promisifyTx(tx);
+  transaction.objectStore(STORE_CURSOR).put(seq, CURSOR_KEY);
+  await promisifyTransaction(transaction);
 }
 
 /**
@@ -286,16 +288,16 @@ export async function truncateAfter(seq: number): Promise<void> {
  * 同一プロセス内の他接続は自発的に閉じ、最終的に `onsuccess` が発火する。
  */
 export async function clearAll(): Promise<void> {
-  if (dbPromise) {
-    const db = await dbPromise;
-    db.close();
-    dbPromise = null;
+  if (databasePromise) {
+    const database = await databasePromise;
+    database.close();
+    databasePromise = null;
   }
   await new Promise<void>((resolve, reject) => {
-    const req = indexedDB.deleteDatabase(DB_NAME);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-    req.onblocked = () => {
+    const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+    deleteRequest.onsuccess = () => resolve();
+    deleteRequest.onerror = () => reject(deleteRequest.error);
+    deleteRequest.onblocked = () => {
       // 他接続が onversionchange で閉じるのを待つだけで OK
     };
   });

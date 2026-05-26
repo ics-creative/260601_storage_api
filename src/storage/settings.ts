@@ -9,7 +9,7 @@
  */
 import type { Settings } from "../core/types";
 
-const KEY = "paint:settings";
+const STORAGE_KEY = "paint:settings";
 
 /**
  * 保存済みの設定を読み出す。未保存なら `null`。
@@ -19,10 +19,10 @@ const KEY = "paint:settings";
  * 壊れたJSONを掴むと例外で初期値に倒すので try/catch する。
  */
 export function loadSettings(): Settings | null {
-  const raw = localStorage.getItem(KEY);
-  if (!raw) return null;
+  const rawJson = localStorage.getItem(STORAGE_KEY);
+  if (!rawJson) return null;
   try {
-    return JSON.parse(raw) as Settings;
+    return JSON.parse(rawJson) as Settings;
   } catch {
     return null;
   }
@@ -34,8 +34,8 @@ export function loadSettings(): Settings | null {
  * `setItem` は同じキーがあれば上書き、無ければ新規作成。
  * 容量上限を超えると `QuotaExceededError` を投げるが、今回扱う値は十分小さいので catch しない。
  */
-export function saveSettings(s: Settings): void {
-  localStorage.setItem(KEY, JSON.stringify(s));
+export function saveSettings(settings: Settings): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
 /**
@@ -45,5 +45,5 @@ export function saveSettings(s: Settings): void {
  * 全削除したい場合は `localStorage.clear()` だが、他用途の値も消すので使わない。
  */
 export function clearSettings(): void {
-  localStorage.removeItem(KEY);
+  localStorage.removeItem(STORAGE_KEY);
 }

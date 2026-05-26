@@ -25,13 +25,13 @@ export function drawStroke(canvas: OffscreenCanvas, stroke: StrokeOp): void {
   if (!ctx || stroke.points.length === 0) return;
   setupStrokeStyle(ctx, stroke.color, stroke.width);
   ctx.beginPath();
-  const [first, ...rest] = stroke.points;
-  ctx.moveTo(first.x, first.y);
-  if (rest.length === 0) {
+  const [firstPoint, ...remainingPoints] = stroke.points;
+  ctx.moveTo(firstPoint.x, firstPoint.y);
+  if (remainingPoints.length === 0) {
     // 1点だけのストロークは moveTo した位置に lineTo して点を打つ
-    ctx.lineTo(first.x, first.y);
+    ctx.lineTo(firstPoint.x, firstPoint.y);
   } else {
-    for (const p of rest) ctx.lineTo(p.x, p.y);
+    for (const point of remainingPoints) ctx.lineTo(point.x, point.y);
   }
   ctx.stroke();
 }
@@ -74,18 +74,22 @@ export function composite(
   if (!ctx) return;
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, displayCanvas.width, displayCanvas.height);
-  for (const id of order) {
-    const c = canvases.get(id);
-    if (c) ctx.drawImage(c, 0, 0);
+  for (const layerId of order) {
+    const layerCanvas = canvases.get(layerId);
+    if (layerCanvas) ctx.drawImage(layerCanvas, 0, 0);
   }
 }
 
-/** 直前点との距離が `minDist` 未満なら入力を捨てる。点列の間引き用。 */
-export function shouldKeepPoint(prev: Point | null, curr: Point, minDist: number): boolean {
-  if (!prev) return true;
-  const dx = curr.x - prev.x;
-  const dy = curr.y - prev.y;
-  return dx * dx + dy * dy >= minDist * minDist;
+/** 直前点との距離が `minDistance` 未満なら入力を捨てる。点列の間引き用。 */
+export function shouldKeepPoint(
+  previous: Point | null,
+  current: Point,
+  minDistance: number,
+): boolean {
+  if (!previous) return true;
+  const dx = current.x - previous.x;
+  const dy = current.y - previous.y;
+  return dx * dx + dy * dy >= minDistance * minDistance;
 }
 
 /**
@@ -105,11 +109,13 @@ export async function canvasToBlob(canvas: OffscreenCanvas): Promise<Blob> {
   // ImageData.data は内部の Uint8ClampedArray を直接参照する (コピー無し)。
   // Blob のコンストラクタは TypedArray をそのまま受け付けてバイト列化する
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const raw = new Blob([imageData.data]);
+  const rawPixelBlob = new Blob([imageData.data]);
   // ReadableStream を `pipeThrough` で圧縮ストリームに繋いで、最終的に
   // `Response.blob()` でバッファに集約する定石パターン。
   // 'deflate-raw' は zlib ヘッダを持たない素の deflate (容量を最小化)
-  return await new Response(raw.stream().pipeThrough(new CompressionStream("deflate-raw"))).blob();
+  return await new Response(
+    rawPixelBlob.stream().pipeThrough(new CompressionStream("deflate-raw")),
+  ).blob();
 }
 
 /**
@@ -119,13 +125,13 @@ export async function canvasToBlob(canvas: OffscreenCanvas): Promise<Blob> {
  * `Uint8ClampedArray` で覆って `ImageData` を作り → `putImageData` で書き戻す。
  */
 export async function blobToCanvas(blob: Blob): Promise<OffscreenCanvas> {
-  const ab = await new Response(
+  const decompressedBuffer = await new Response(
     blob.stream().pipeThrough(new DecompressionStream("deflate-raw")),
   ).arrayBuffer();
-  const c = createLayerCanvas();
-  const ctx = c.getContext("2d")!;
+  const canvas = createLayerCanvas();
+  const ctx = canvas.getContext("2d")!;
   // ArrayBuffer は所有権を渡す形で Uint8ClampedArray にラップする (コピー無し)
-  const data = new Uint8ClampedArray(ab);
-  ctx.putImageData(new ImageData(data, c.width, c.height), 0, 0);
-  return c;
+  const pixels = new Uint8ClampedArray(decompressedBuffer);
+  ctx.putImageData(new ImageData(pixels, canvas.width, canvas.height), 0, 0);
+  return canvas;
 }

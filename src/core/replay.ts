@@ -15,24 +15,24 @@ export function applyOne(state: LayerState, op: Op): void {
     }
     case "deleteLayer": {
       state.canvases.delete(op.layerId);
-      state.order = state.order.filter((id) => id !== op.layerId);
+      state.order = state.order.filter((layerId) => layerId !== op.layerId);
       return;
     }
     case "stroke": {
-      const c = state.canvases.get(op.layerId);
-      if (c) drawStroke(c, op);
+      const layerCanvas = state.canvases.get(op.layerId);
+      if (layerCanvas) drawStroke(layerCanvas, op);
       return;
     }
   }
 }
 
 export function replayLayer(state: LayerState, layerId: string, entries: LogEntry[]): void {
-  const c = state.canvases.get(layerId);
-  if (!c) return;
-  clearCanvas(c);
-  for (const e of entries) {
-    if (e.op.type === "stroke" && e.op.layerId === layerId) {
-      drawStroke(c, e.op);
+  const layerCanvas = state.canvases.get(layerId);
+  if (!layerCanvas) return;
+  clearCanvas(layerCanvas);
+  for (const entry of entries) {
+    if (entry.op.type === "stroke" && entry.op.layerId === layerId) {
+      drawStroke(layerCanvas, entry.op);
     }
   }
 }

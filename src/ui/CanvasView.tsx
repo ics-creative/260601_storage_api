@@ -20,62 +20,62 @@ export function CanvasView({ state, selectedLayerId, color, width, onStrokeEnd }
   } | null>(null);
 
   useEffect(() => {
-    const c = displayRef.current;
-    if (!c) return;
-    composite(c, state.order, state.canvases);
+    const displayCanvas = displayRef.current;
+    if (!displayCanvas) return;
+    composite(displayCanvas, state.order, state.canvases);
   }, [state]);
 
-  function toCanvasPoint(e: React.PointerEvent<HTMLCanvasElement>): Point {
-    const c = displayRef.current!;
-    const rect = c.getBoundingClientRect();
-    const scaleX = c.width / rect.width;
-    const scaleY = c.height / rect.height;
+  function toCanvasPoint(event: React.PointerEvent<HTMLCanvasElement>): Point {
+    const displayCanvas = displayRef.current!;
+    const rect = displayCanvas.getBoundingClientRect();
+    const scaleX = displayCanvas.width / rect.width;
+    const scaleY = displayCanvas.height / rect.height;
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
     };
   }
 
-  function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+  function onPointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
     if (!selectedLayerId || !state.canvases.has(selectedLayerId)) return;
-    (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
-    const p = toCanvasPoint(e);
-    drawingRef.current = { points: [p], last: p };
+    (event.currentTarget as HTMLCanvasElement).setPointerCapture(event.pointerId);
+    const point = toCanvasPoint(event);
+    drawingRef.current = { points: [point], last: point };
   }
 
-  function onPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
-    const d = drawingRef.current;
-    if (!d || !selectedLayerId) return;
-    const p = toCanvasPoint(e);
-    if (!shouldKeepPoint(d.last, p, MIN_POINT_DIST)) return;
-    const layer = state.canvases.get(selectedLayerId);
-    if (layer && d.last) {
-      drawSegment(layer, d.last, p, color, width);
-      const display = displayRef.current;
-      if (display) composite(display, state.order, state.canvases);
+  function onPointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
+    const drawing = drawingRef.current;
+    if (!drawing || !selectedLayerId) return;
+    const point = toCanvasPoint(event);
+    if (!shouldKeepPoint(drawing.last, point, MIN_POINT_DIST)) return;
+    const layerCanvas = state.canvases.get(selectedLayerId);
+    if (layerCanvas && drawing.last) {
+      drawSegment(layerCanvas, drawing.last, point, color, width);
+      const displayCanvas = displayRef.current;
+      if (displayCanvas) composite(displayCanvas, state.order, state.canvases);
     }
-    d.points.push(p);
-    d.last = p;
+    drawing.points.push(point);
+    drawing.last = point;
   }
 
   function onPointerUp() {
-    const d = drawingRef.current;
+    const drawing = drawingRef.current;
     drawingRef.current = null;
-    if (!d || !selectedLayerId) return;
-    if (d.points.length === 1) {
+    if (!drawing || !selectedLayerId) return;
+    if (drawing.points.length === 1) {
       // 単一クリックは点として描画
-      const layer = state.canvases.get(selectedLayerId);
-      if (layer) {
-        drawSegment(layer, d.points[0], d.points[0], color, width);
-        const display = displayRef.current;
-        if (display) composite(display, state.order, state.canvases);
+      const layerCanvas = state.canvases.get(selectedLayerId);
+      if (layerCanvas) {
+        drawSegment(layerCanvas, drawing.points[0], drawing.points[0], color, width);
+        const displayCanvas = displayRef.current;
+        if (displayCanvas) composite(displayCanvas, state.order, state.canvases);
       }
     }
     onStrokeEnd({
       layerId: selectedLayerId,
       color,
       width,
-      points: d.points,
+      points: drawing.points,
     });
   }
 

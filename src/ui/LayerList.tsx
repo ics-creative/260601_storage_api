@@ -25,31 +25,31 @@ export function LayerList({ order, selectedLayerId, onSelect, onAdd, onDelete }:
         </button>
       </div>
       {/* 上 = 前面表示 (描画順序の末尾)。border のダブりを避けるため隣接行は上 border を消す */}
-      {[...order].reverse().map((id, idxFromTop) => {
-        const idx = order.length - 1 - idxFromTop;
-        const isSelected = id === selectedLayerId;
+      {[...order].reverse().map((layerId, indexFromTop) => {
+        const drawingIndex = order.length - 1 - indexFromTop;
+        const isSelected = layerId === selectedLayerId;
         return (
           <div
-            key={id}
+            key={layerId}
             style={{
               display: "flex",
               alignItems: "center",
               gap: 4,
               padding: 4,
               border: "1px solid #ccc",
-              borderTopWidth: idxFromTop === 0 ? 1 : 0,
+              borderTopWidth: indexFromTop === 0 ? 1 : 0,
               background: isSelected ? "#e6f2ff" : "transparent",
               cursor: "pointer",
             }}
-            onClick={() => onSelect(id)}
+            onClick={() => onSelect(layerId)}
           >
             <span style={{ flex: 1, fontFamily: "monospace", fontSize: 12 }}>
-              #{idx} {id.slice(0, 6)}
+              #{drawingIndex} {layerId.slice(0, 6)}
             </span>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(id);
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete(layerId);
               }}
               title="Delete layer"
             >

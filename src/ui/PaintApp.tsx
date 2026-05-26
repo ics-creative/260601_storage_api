@@ -39,14 +39,14 @@ export function PaintApp() {
   const [ready, setReady] = useState(false);
   const initStartedRef = useRef(false);
 
-  const bump = () => setVersion((v) => v + 1);
+  const bump = () => setVersion((previous) => previous + 1);
 
   // ユーザー由来の設定変更を行うラッパー。LocalStorage への書き込みを伴う。
   // 起動時の loadSettings から復元したまま変更されない場合は何も書かないことで、
   // 設定キーは「初めて変更した瞬間」に LocalStorage に出現する。
-  const updateSettings = (updater: (s: Settings) => Settings) => {
-    setSettings((s) => {
-      const next = updater(s);
+  const updateSettings = (updater: (previous: Settings) => Settings) => {
+    setSettings((previous) => {
+      const next = updater(previous);
       saveSettings(next);
       return next;
     });
@@ -59,62 +59,69 @@ export function PaintApp() {
     initStartedRef.current = true;
     void init();
     async function init() {
-      const loaded = loadSettings() ?? DEFAULT_SETTINGS;
-      const dbHead = await getHead();
-      const dbMax = await getMaxSeq();
+      const loadedSettings = loadSettings() ?? DEFAULT_SETTINGS;
+      const persistedHead = await getHead();
+      const persistedMaxSeq = await getMaxSeq();
 
-      const snap = await loadSnapshot();
+      const snapshot = await loadSnapshot();
       const state = stateRef.current;
 
       // OPFSスナップショットがあれば Blob を canvas に復元 (展開は並列実行)
-      if (snap) {
-        const decoded = await Promise.all(
-          snap.layers.map(async ({ id, blob }) => ({ id, canvas: await blobToCanvas(blob) })),
+      if (snapshot) {
+        const decodedLayers = await Promise.all(
+          snapshot.layers.map(async ({ id, blob }) => ({
+            id,
+            canvas: await blobToCanvas(blob),
+          })),
         );
-        for (const { id, canvas } of decoded) state.canvases.set(id, canvas);
-        state.order = snap.layers.map((l) => l.id);
+        for (const { id, canvas } of decodedLayers) state.canvases.set(id, canvas);
+        state.order = snapshot.layers.map((layer) => layer.id);
       }
 
       // スナップショットを基準点とし、未保存ログ (savedAt 超のop) があれば確認
       // スナップショット無しは savedAt=0 として同じ流れで扱う
-      const savedAt = snap?.meta.savedAtSeq ?? 0;
-      if (dbMax > savedAt) {
-        const apply = window.confirm(
-          `OPFS スナップショットより新しい操作ログが IndexedDB に ${dbMax - savedAt} 件あります。復元しますか？\n` +
-            `IndexedDB has ${dbMax - savedAt} operations newer than the OPFS snapshot. Restore?\n` +
+      const savedAtSeq = snapshot?.meta.savedAtSeq ?? 0;
+      if (persistedMaxSeq > savedAtSeq) {
+        const unsavedCount = persistedMaxSeq - savedAtSeq;
+        const shouldApply = window.confirm(
+          `OPFS スナップショットより新しい操作ログが IndexedDB に ${unsavedCount} 件あります。復元しますか？\n` +
+            `IndexedDB has ${unsavedCount} operations newer than the OPFS snapshot. Restore?\n` +
             `\n` +
             `OK: 差分を適用して復元 / Apply diff and restore\n` +
             `Cancel: 未保存分を破棄 / Discard unsaved ops`,
         );
-        if (apply) {
-          const diff = await listOpsBetween(savedAt, dbMax);
-          for (const e of diff) applyOne(state, e.op);
-          await setHeadDb(dbMax);
-          setHead(dbMax);
-          setMaxSeq(dbMax);
+        if (shouldApply) {
+          const diffEntries = await listOpsBetween(savedAtSeq, persistedMaxSeq);
+          for (const entry of diffEntries) applyOne(state, entry.op);
+          await setHeadDb(persistedMaxSeq);
+          setHead(persistedMaxSeq);
+          setMaxSeq(persistedMaxSeq);
         } else {
-          await truncateAfter(savedAt);
-          setHead(savedAt);
-          setMaxSeq(savedAt);
+          await truncateAfter(savedAtSeq);
+          setHead(savedAtSeq);
+          setMaxSeq(savedAtSeq);
         }
       } else {
-        setHead(dbHead);
-        setMaxSeq(dbMax);
+        setHead(persistedHead);
+        setMaxSeq(persistedMaxSeq);
       }
 
       // レイヤーが1枚もない場合は初期レイヤーを追加
       if (state.order.length === 0) {
-        const id = newLayerId();
-        const seq = await appendOp({ type: "addLayer", layerId: id });
-        applyOne(state, { type: "addLayer", layerId: id });
+        const initialLayerId = newLayerId();
+        const seq = await appendOp({ type: "addLayer", layerId: initialLayerId });
+        applyOne(state, { type: "addLayer", layerId: initialLayerId });
         setHead(seq);
         setMaxSeq(seq);
-        loaded.selectedLayerId = id;
-      } else if (!loaded.selectedLayerId || !state.canvases.has(loaded.selectedLayerId)) {
-        loaded.selectedLayerId = state.order[state.order.length - 1];
+        loadedSettings.selectedLayerId = initialLayerId;
+      } else if (
+        !loadedSettings.selectedLayerId ||
+        !state.canvases.has(loadedSettings.selectedLayerId)
+      ) {
+        loadedSettings.selectedLayerId = state.order[state.order.length - 1];
       }
 
-      setSettings(loaded);
+      setSettings(loadedSettings);
       bump();
       setReady(true);
     }
@@ -135,33 +142,33 @@ export function PaintApp() {
   }
 
   async function handleAddLayer() {
-    const id = newLayerId();
-    const op: Op = { type: "addLayer", layerId: id };
+    const newId = newLayerId();
+    const op: Op = { type: "addLayer", layerId: newId };
     const seq = await appendOp(op);
     applyOne(stateRef.current, op);
     setHead(seq);
     setMaxSeq(seq);
-    updateSettings((s) => ({ ...s, selectedLayerId: id }));
+    updateSettings((previous) => ({ ...previous, selectedLayerId: newId }));
     bump();
   }
 
-  async function handleDeleteLayer(id: string) {
+  async function handleDeleteLayer(targetId: string) {
     const state = stateRef.current;
-    if (!state.canvases.has(id)) return;
-    const op: Op = { type: "deleteLayer", layerId: id };
+    if (!state.canvases.has(targetId)) return;
+    const op: Op = { type: "deleteLayer", layerId: targetId };
     const seq = await appendOp(op);
-    const idxBefore = state.order.indexOf(id);
+    const indexBeforeDelete = state.order.indexOf(targetId);
     applyOne(state, op);
     setHead(seq);
     setMaxSeq(seq);
     // 削除後の選択: 同じインデックス、なければ末尾、なければ null
-    let nextId: string | null = null;
+    let nextSelectedId: string | null = null;
     if (state.order.length > 0) {
-      nextId =
-        state.order[Math.min(idxBefore, state.order.length - 1)] ??
+      nextSelectedId =
+        state.order[Math.min(indexBeforeDelete, state.order.length - 1)] ??
         state.order[state.order.length - 1];
     }
-    updateSettings((s) => ({ ...s, selectedLayerId: nextId }));
+    updateSettings((previous) => ({ ...previous, selectedLayerId: nextSelectedId }));
     bump();
   }
 
@@ -176,18 +183,18 @@ export function PaintApp() {
     if (op.type === "addLayer") {
       // 追加を取り消し: レイヤーを除去
       state.canvases.delete(op.layerId);
-      state.order = state.order.filter((x) => x !== op.layerId);
+      state.order = state.order.filter((layerId) => layerId !== op.layerId);
     } else if (op.type === "deleteLayer") {
       // 削除を取り消し: 復元してそのレイヤー宛strokeをリプレイ
-      const c = createLayerCanvas();
-      state.canvases.set(op.layerId, c);
+      const restoredCanvas = createLayerCanvas();
+      state.canvases.set(op.layerId, restoredCanvas);
       state.order.push(op.layerId);
-      const past = await listOpsUpTo(newHead);
-      replayLayer(state, op.layerId, past);
+      const pastEntries = await listOpsUpTo(newHead);
+      replayLayer(state, op.layerId, pastEntries);
     } else {
       // stroke 取り消し: 該当レイヤーをクリアして newHead までのstrokeをリプレイ
-      const past = await listOpsUpTo(newHead);
-      replayLayer(state, op.layerId, past);
+      const pastEntries = await listOpsUpTo(newHead);
+      replayLayer(state, op.layerId, pastEntries);
     }
 
     await setHeadDb(newHead);
@@ -198,7 +205,7 @@ export function PaintApp() {
     const nextSelected = state.canvases.has(targetId)
       ? targetId
       : (state.order[state.order.length - 1] ?? null);
-    updateSettings((s) => ({ ...s, selectedLayerId: nextSelected }));
+    updateSettings((previous) => ({ ...previous, selectedLayerId: nextSelected }));
     bump();
   }
 
@@ -215,7 +222,7 @@ export function PaintApp() {
     const nextSelected = stateRef.current.canvases.has(targetId)
       ? targetId
       : (stateRef.current.order[stateRef.current.order.length - 1] ?? null);
-    updateSettings((s) => ({ ...s, selectedLayerId: nextSelected }));
+    updateSettings((previous) => ({ ...previous, selectedLayerId: nextSelected }));
     bump();
   }
 
@@ -224,13 +231,13 @@ export function PaintApp() {
     // 各レイヤーの圧縮は独立に並列実行できる。順序は state.order の通り維持される
     const layers = (
       await Promise.all(
-        state.order.map(async (id) => {
-          const c = state.canvases.get(id);
-          if (!c) return null;
-          return { id, blob: await canvasToBlob(c) };
+        state.order.map(async (layerId) => {
+          const layerCanvas = state.canvases.get(layerId);
+          if (!layerCanvas) return null;
+          return { id: layerId, blob: await canvasToBlob(layerCanvas) };
         }),
       )
-    ).filter((l): l is { id: string; blob: Blob } => l !== null);
+    ).filter((layer): layer is { id: string; blob: Blob } => layer !== null);
     await saveSnapshot(layers, { savedAtSeq: head, layerOrder: state.order });
     bump(); // OPFSの中身が変わったのでデバッグ表示を更新
     window.alert(
@@ -266,8 +273,8 @@ export function PaintApp() {
         width={settings.width}
         canUndo={head > 0}
         canRedo={head < maxSeq}
-        onColorChange={(color) => updateSettings((s) => ({ ...s, color }))}
-        onWidthChange={(width) => updateSettings((s) => ({ ...s, width }))}
+        onColorChange={(color) => updateSettings((previous) => ({ ...previous, color }))}
+        onWidthChange={(width) => updateSettings((previous) => ({ ...previous, width }))}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onSave={handleSave}
@@ -285,7 +292,9 @@ export function PaintApp() {
           <LayerList
             order={state.order}
             selectedLayerId={settings.selectedLayerId}
-            onSelect={(id) => updateSettings((s) => ({ ...s, selectedLayerId: id }))}
+            onSelect={(id) =>
+              updateSettings((previous) => ({ ...previous, selectedLayerId: id }))
+            }
             onAdd={handleAddLayer}
             onDelete={handleDeleteLayer}
           />

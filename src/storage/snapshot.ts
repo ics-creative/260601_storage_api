@@ -13,8 +13,11 @@
  *   /meta.json              保存時の seq とレイヤー順序
  */
 
+/** レイヤーデータを格納するディレクトリ */
 const LAYERS_DIR = "layers";
+/** メタデータのファイル名 */
 const META_FILE = "meta.json";
+/** レイヤーデータ（RGBバイト列のzip圧縮）の拡張子 */
 const LAYER_EXT = ".bin";
 
 /** OPFS に保存するメタ情報 */
@@ -34,7 +37,9 @@ async function getRoot(): Promise<FileSystemDirectoryHandle> {
  * `layers/` ディレクトリの handle を取得。
  * `create: true` だと無い場合に作成、`false` だと無ければ例外 → null で返す
  */
-async function getLayersDir(create: boolean): Promise<FileSystemDirectoryHandle | null> {
+async function getLayersDir(
+  create: boolean,
+): Promise<FileSystemDirectoryHandle | null> {
   const root = await getRoot();
   try {
     return await root.getDirectoryHandle(LAYERS_DIR, { create });
@@ -66,17 +71,19 @@ export async function saveSnapshot(
 
   await Promise.all(
     layers.map(async ({ id, blob }) => {
-      const fh = await layersDir.getFileHandle(`${id}${LAYER_EXT}`, { create: true });
-      const w = await fh.createWritable();
-      await w.write(blob);
-      await w.close();
+      const layerFileHandle = await layersDir.getFileHandle(`${id}${LAYER_EXT}`, {
+        create: true,
+      });
+      const writable = await layerFileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
     }),
   );
 
-  const metaFh = await root.getFileHandle(META_FILE, { create: true });
-  const w = await metaFh.createWritable();
-  await w.write(new Blob([JSON.stringify(meta)], { type: "application/json" }));
-  await w.close();
+  const metaFileHandle = await root.getFileHandle(META_FILE, { create: true });
+  const metaWritable = await metaFileHandle.createWritable();
+  await metaWritable.write(new Blob([JSON.stringify(meta)], { type: "application/json" }));
+  await metaWritable.close();
 }
 
 /**
@@ -94,23 +101,23 @@ export async function loadSnapshot(): Promise<{
   layers: { id: string; blob: Blob }[];
 } | null> {
   const root = await getRoot();
-  let metaFh: FileSystemFileHandle;
+  let metaFileHandle: FileSystemFileHandle;
   try {
-    metaFh = await root.getFileHandle(META_FILE);
+    metaFileHandle = await root.getFileHandle(META_FILE);
   } catch {
     return null;
   }
-  const metaFile = await metaFh.getFile();
+  const metaFile = await metaFileHandle.getFile();
   const meta = JSON.parse(await metaFile.text()) as SnapshotMeta;
 
   const layersDir = await getLayersDir(false);
   if (!layersDir) return { meta, layers: [] };
 
-  const results = await Promise.all(
+  const loadResults = await Promise.all(
     meta.layerOrder.map(async (id) => {
       try {
-        const fh = await layersDir.getFileHandle(`${id}${LAYER_EXT}`);
-        const file = await fh.getFile();
+        const layerFileHandle = await layersDir.getFileHandle(`${id}${LAYER_EXT}`);
+        const file = await layerFileHandle.getFile();
         return { id, blob: file as Blob };
       } catch {
         return null; // 個別ファイル欠損は無視
@@ -119,7 +126,9 @@ export async function loadSnapshot(): Promise<{
   );
   return {
     meta,
-    layers: results.filter((r): r is { id: string; blob: Blob } => r !== null),
+    layers: loadResults.filter(
+      (result): result is { id: string; blob: Blob } => result !== null,
+    ),
   };
 }
 
@@ -141,9 +150,12 @@ export async function listFiles(): Promise<{
 
   let meta: { size: number; data: SnapshotMeta } | null = null;
   try {
-    const fh = await root.getFileHandle(META_FILE);
-    const f = await fh.getFile();
-    meta = { size: f.size, data: JSON.parse(await f.text()) as SnapshotMeta };
+    const metaFileHandle = await root.getFileHandle(META_FILE);
+    const metaFile = await metaFileHandle.getFile();
+    meta = {
+      size: metaFile.size,
+      data: JSON.parse(await metaFile.text()) as SnapshotMeta,
+    };
   } catch {
     // meta無し
   }
@@ -153,8 +165,8 @@ export async function listFiles(): Promise<{
   if (layersDir) {
     for await (const entry of layersDir.values()) {
       if (entry.kind === "file") {
-        const f = await (entry as FileSystemFileHandle).getFile();
-        layers.push({ name: entry.name, size: f.size });
+        const file = await (entry as FileSystemFileHandle).getFile();
+        layers.push({ name: entry.name, size: file.size });
       }
     }
   }
