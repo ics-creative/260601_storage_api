@@ -2,6 +2,8 @@
   font-family: system-ui, sans-serif;
   font-size: 14px;
   color-scheme: light dark;
+  background-color: #EFF2F5;
+  color: #404040;
 }
 
 body {
@@ -16,4 +18,81 @@ select {
 
 button {
   cursor: pointer;
+  background-color: #EBE9FC;
+  border: 1px solid #3223B3;
+  border-radius: 4px;
+  color: #3223B3;
+}
+
+/* 本文 = 左カラム(sidebar) + 描画領域(canvas-area) の行 */
+.app-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 360px;
+  padding: 8px;
+  overflow: auto;
+  /* パネル以外の余白は背景(描画領域)へクリックを透過させる */
+  pointer-events: none;
+}
+
+.canvas-area {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px;
+}
+
+/* Layers / Debug 共通の折りたたみパネル */
+.panel {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  pointer-events: auto;
+}
+
+.panel > summary {
+  padding: 8px;
+  cursor: pointer;
+}
+
+.panel-title {
+  display: inline;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.panel-summary-action {
+  float: right;
+}
+
+.panel-body {
+  padding: 0 8px 8px;
+}
+
+/* 幅768px未満: 描画領域を全幅、左カラムはオーバーレイ */
+@media (max-width: 767.98px) {
+  .sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 10;
+    width: min(320px, 85vw);
+  }
+
+  .canvas-area {
+    align-items: flex-end;
+  }
 }

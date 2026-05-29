@@ -59,35 +59,37 @@ export function DebugPanel({ refreshKey }: Props) {
   }, [refreshKey]);
 
   return (
-    <div
-      style={{
-        padding: 8,
-        fontFamily: "monospace",
-        fontSize: 11,
-        lineHeight: 1.5,
-        color: "#555",
-        borderTop: "1px solid #ddd",
-      }}
-    >
-      <Section title="LocalStorage">
-        {localStorageRaw ? (
-          <>
-            <div>paint:settings ({formatBytes(localStorageRaw.length)})</div>
-            <pre style={preStyle}>{localStorageRaw}</pre>
-          </>
-        ) : (
-          <div>(empty)</div>
-        )}
-      </Section>
+    <details className="panel" open>
+      <summary>
+        <h3 className="panel-title">Debug</h3>
+      </summary>
+      <div
+        className="panel-body"
+        style={{
+          fontFamily: "monospace",
+          fontSize: 11,
+          lineHeight: 1.5,
+          color: "#555",
+        }}
+      >
+        <Section title="LocalStorage">
+          {localStorageRaw ? (
+            <>
+              <div>paint:settings ({formatBytes(localStorageRaw.length)})</div>
+              <pre style={preStyle}>{localStorageRaw}</pre>
+            </>
+          ) : (
+            <div>(empty)</div>
+          )}
+        </Section>
 
-      <Section title="IndexedDB (paint-db)">
-        {indexedDbInfo ? <IdbView info={indexedDbInfo} /> : <div>...</div>}
-      </Section>
+        <Section title="IndexedDB (paint-db)">
+          {indexedDbInfo ? <IdbView info={indexedDbInfo} /> : <div>...</div>}
+        </Section>
 
-      <Section title="OPFS">
-        {opfsInfo ? <OpfsTree info={opfsInfo} /> : <div>...</div>}
-      </Section>
-    </div>
+        <Section title="OPFS">{opfsInfo ? <OpfsTree info={opfsInfo} /> : <div>...</div>}</Section>
+      </div>
+    </details>
   );
 }
 

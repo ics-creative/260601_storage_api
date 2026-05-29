@@ -32,7 +32,15 @@ export function Toolbar({
   onReset,
 }: Props) {
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", padding: 8 }}>
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 4,
+        alignItems: "center",
+        padding: 8,
+      }}
+    >
       <input
         type="color"
         value={color}

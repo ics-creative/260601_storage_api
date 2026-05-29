@@ -37,9 +37,7 @@ async function getRoot(): Promise<FileSystemDirectoryHandle> {
  * `layers/` ディレクトリの handle を取得。
  * `create: true` だと無い場合に作成、`false` だと無ければ例外 → null で返す
  */
-async function getLayersDir(
-  create: boolean,
-): Promise<FileSystemDirectoryHandle | null> {
+async function getLayersDir(create: boolean): Promise<FileSystemDirectoryHandle | null> {
   const root = await getRoot();
   try {
     return await root.getDirectoryHandle(LAYERS_DIR, { create });
@@ -126,9 +124,7 @@ export async function loadSnapshot(): Promise<{
   );
   return {
     meta,
-    layers: loadResults.filter(
-      (result): result is { id: string; blob: Blob } => result !== null,
-    ),
+    layers: loadResults.filter((result): result is { id: string; blob: Blob } => result !== null),
   };
 }
 

@@ -277,35 +277,18 @@ export function PaintApp() {
         onSave={handleSave}
         onReset={handleReset}
       />
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            width: 360,
-            overflow: "auto",
-          }}
-        >
+      <div className="app-body">
+        <div className="sidebar">
           <LayerList
             order={state.order}
             selectedLayerId={settings.selectedLayerId}
-            onSelect={(id) =>
-              updateSettings((previous) => ({ ...previous, selectedLayerId: id }))
-            }
+            onSelect={(id) => updateSettings((previous) => ({ ...previous, selectedLayerId: id }))}
             onAdd={handleAddLayer}
             onDelete={handleDeleteLayer}
           />
           <DebugPanel refreshKey={version} />
         </div>
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            padding: 8,
-          }}
-        >
+        <div className="canvas-area">
           {state.order.length === 0 ? (
             <button
               onClick={handleAddLayer}
