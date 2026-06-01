@@ -93,33 +93,31 @@ export function shouldKeepPoint(
 }
 
 /**
- * キャンバスを「圧縮済み raw RGBA」Blob に変換する。
+ * キャンバスを「圧縮済み raw RGBA」の ReadableStream に変換する。
  *
  * `getImageData` で取り出した生ピクセル (Uint8ClampedArray, 4MB/枚) を
- * `CompressionStream('deflate-raw')` でストリーム圧縮する。
+ * `CompressionStream('deflate-raw')` に流してストリーム圧縮する。
  *
  * - 完全ロスレス (raw pixels + deflate なので情報損失なし)
  * - 透明領域が多いと deflate が効いて大幅に縮む (ペン描画なら数十KB程度)
  *
  * キャンバスサイズは固定 (CANVAS_SIZE) 前提で寸法情報は保存しない。
  */
-export async function canvasToBlob(canvas: OffscreenCanvas): Promise<Blob> {
+export function canvasToCompressedStream(canvas: OffscreenCanvas): ReadableStream<Uint8Array> {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("no 2d context");
   // ImageData.data は内部の Uint8ClampedArray を直接参照する (コピー無し)。
   // Blob のコンストラクタは TypedArray をそのまま受け付けてバイト列化する
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const rawPixelBlob = new Blob([imageData.data]);
-  // ReadableStream を `pipeThrough` で圧縮ストリームに繋いで、最終的に
-  // `Response.blob()` でバッファに集約する定石パターン。
+  // ReadableStream を `pipeThrough` で圧縮ストリームに繋ぐ。
+  // 保存時はこの戻り値を OPFS の WritableStream へそのまま `pipeTo` する。
   // 'deflate-raw' は zlib ヘッダを持たない素の deflate (容量を最小化)
-  return await new Response(
-    rawPixelBlob.stream().pipeThrough(new CompressionStream("deflate-raw")),
-  ).blob();
+  return rawPixelBlob.stream().pipeThrough(new CompressionStream("deflate-raw"));
 }
 
 /**
- * `canvasToBlob` が作った Blob を新規キャンバスに復元する。
+ * OPFS から読み込んだ圧縮済み Blob を新規キャンバスに復元する。
  *
  * 圧縮時と逆の手順: `DecompressionStream` で展開 → `ArrayBuffer` を
  * `Uint8ClampedArray` で覆って `ImageData` を作り → `putImageData` で書き戻す。

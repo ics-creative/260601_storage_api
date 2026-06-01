@@ -2,7 +2,7 @@
   font-family: system-ui, sans-serif;
   font-size: 14px;
   color-scheme: light dark;
-  background-color: #EFF2F5;
+  background-color: #eff2f5;
   color: #404040;
 }
 
@@ -18,10 +18,10 @@ select {
 
 button {
   cursor: pointer;
-  background-color: #EBE9FC;
-  border: 1px solid #3223B3;
+  background-color: #ebe9fc;
+  border: 1px solid #3223b3;
   border-radius: 4px;
-  color: #3223B3;
+  color: #3223b3;
 }
 
 /* 本文 = 左カラム(sidebar) + 描画領域(canvas-area) の行 */

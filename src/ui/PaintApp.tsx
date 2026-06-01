@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { CANVAS_SIZE, type LayerState, type Op, type Settings } from "../core/types";
 import { applyOne, emptyState, replayLayer } from "../core/replay";
-import { blobToCanvas, canvasToBlob, createLayerCanvas } from "../core/canvas";
+import { blobToCanvas, canvasToCompressedStream, createLayerCanvas } from "../core/canvas";
 import { loadSettings, saveSettings } from "../storage/settings";
 import {
   appendOp,
@@ -225,16 +225,16 @@ export function PaintApp() {
 
   async function handleSave() {
     const state = stateRef.current;
-    // 各レイヤーの圧縮は独立に並列実行できる。順序は state.order の通り維持される
-    const layers = (
-      await Promise.all(
-        state.order.map(async (layerId) => {
-          const layerCanvas = state.canvases.get(layerId);
-          if (!layerCanvas) return null;
-          return { id: layerId, blob: await canvasToBlob(layerCanvas) };
-        }),
-      )
-    ).filter((layer): layer is { id: string; blob: Blob } => layer !== null);
+    // 各レイヤーを「RGBA → deflate」の ReadableStream にし、OPFSへ直接 pipeTo する。
+    const layers = state.order
+      .map((layerId) => {
+        const layerCanvas = state.canvases.get(layerId);
+        if (!layerCanvas) return null;
+        return { id: layerId, stream: canvasToCompressedStream(layerCanvas) };
+      })
+      .filter(
+        (layer): layer is { id: string; stream: ReadableStream<Uint8Array> } => layer !== null,
+      );
     await saveSnapshot(layers, { savedAtSeq: head, layerOrder: state.order });
     bump(); // OPFSの中身が変わったのでデバッグ表示を更新
     window.alert(

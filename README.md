@@ -28,7 +28,7 @@ UI部分は React で実装していますが、本題であるストレージ�
 
 ### [src/storage/snapshot.ts](src/storage/snapshot.ts) — OPFS
 
-各レイヤーの RGBA バイト列を `deflate-raw` で圧縮し、`layers/{layerId}.bin` として保存します。`navigator.storage.getDirectory()` から `FileSystemDirectoryHandle` を辿り、`createWritable()` で書き込み、`AsyncIterable` でディレクトリを列挙、といった OPFS / File System Access API の基本操作をまとめて確認できます。
+各レイヤーの RGBA バイト列を `CompressionStream('deflate-raw')` で圧縮し、OPFS の `createWritable()` で得た `FileSystemWritableFileStream` へ `pipeTo()` して `layers/{layerId}.bin` として保存します。`navigator.storage.getDirectory()` から `FileSystemDirectoryHandle` を辿り、`AsyncIterable` でディレクトリを列挙する処理も含め、OPFS / File System Access API の基本操作をまとめて確認できます。
 
 ## 開発コマンド
 

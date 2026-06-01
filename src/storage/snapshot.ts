@@ -17,7 +17,7 @@
 const LAYERS_DIR = "layers";
 /** メタデータのファイル名 */
 const META_FILE = "meta.json";
-/** レイヤーデータ（RGBバイト列のzip圧縮）の拡張子 */
+/** レイヤーデータ（RGBAバイト列のdeflate圧縮）の拡張子 */
 const LAYER_EXT = ".bin";
 
 /** OPFS に保存するメタ情報 */
@@ -47,15 +47,15 @@ async function getLayersDir(create: boolean): Promise<FileSystemDirectoryHandle 
 }
 
 /**
- * 全レイヤー Blob とメタ情報を OPFS に書き出す (保存ボタン押下時)。
+ * 全レイヤーの圧縮ストリームとメタ情報を OPFS に書き出す (保存ボタン押下時)。
  *
  * - 旧スナップショットの残骸を残さないため、`layers/` を毎回削除してから作り直す
  * - 書き込み手順は `getFileHandle({create:true})` → `createWritable()` で
- *   `FileSystemWritableFileStream` を取得 → `write(blob)` → `close()`
+ *   `FileSystemWritableFileStream` を取得 → 圧縮ストリームを `pipeTo(writable)`
  * - レイヤー間は独立して書けるので `Promise.all` で並列化する
  */
 export async function saveSnapshot(
-  layers: { id: string; blob: Blob }[],
+  layers: { id: string; stream: ReadableStream<Uint8Array> }[],
   meta: SnapshotMeta,
 ): Promise<void> {
   const root = await getRoot();
@@ -68,13 +68,12 @@ export async function saveSnapshot(
   const layersDir = await root.getDirectoryHandle(LAYERS_DIR, { create: true });
 
   await Promise.all(
-    layers.map(async ({ id, blob }) => {
+    layers.map(async ({ id, stream }) => {
       const layerFileHandle = await layersDir.getFileHandle(`${id}${LAYER_EXT}`, {
         create: true,
       });
       const writable = await layerFileHandle.createWritable();
-      await writable.write(blob);
-      await writable.close();
+      await stream.pipeTo(writable);
     }),
   );
 
