@@ -24,6 +24,24 @@ button {
   color: #3223b3;
 }
 
+.toolbar {
+  container-type: inline-size;
+}
+
+@container (max-width: 519.98px) {
+  .toolbar-slider-input {
+    width: 50px;
+  }
+
+  .toolbar-color-input {
+    width: 27px;
+  }
+
+  .toolbar-button-icon {
+    display: none;
+  }
+}
+
 /* 本文 = 左カラム(sidebar) + 描画領域(canvas-area) の行 */
 .app-body {
   position: relative;

@@ -33,6 +33,7 @@ export function Toolbar({
 }: Props) {
   return (
     <div
+      className="toolbar"
       style={{
         display: "flex",
         flexWrap: "wrap",
@@ -42,12 +43,14 @@ export function Toolbar({
       }}
     >
       <input
+        className="toolbar-color-input"
         type="color"
         value={color}
         onChange={(event) => onColorChange(event.target.value)}
         aria-label="色"
       />
       <input
+        className="toolbar-slider-input"
         type="range"
         min={1}
         max={64}
@@ -57,16 +60,16 @@ export function Toolbar({
       />
       <span style={{ width: 28, textAlign: "right" }}>{width}px</span>
       <button onClick={onUndo} disabled={!canUndo} style={buttonStyle}>
-        <Undo2 size={14} /> Undo
+        <Undo2 className="toolbar-button-icon" size={14} /> Undo
       </button>
       <button onClick={onRedo} disabled={!canRedo} style={buttonStyle}>
-        <Redo2 size={14} /> Redo
+        <Redo2 className="toolbar-button-icon" size={14} /> Redo
       </button>
       <button onClick={onSave} style={buttonStyle}>
-        <Save size={14} /> Save
+        <Save className="toolbar-button-icon" size={14} /> Save
       </button>
       <button onClick={onReset} style={buttonStyle}>
-        <X size={14} /> Reset
+        <X className="toolbar-button-icon" size={14} /> Reset
       </button>
     </div>
   );
